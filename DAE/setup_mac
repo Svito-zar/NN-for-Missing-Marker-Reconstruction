@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+VENV="venv"
+
+sudo easy_install pip
+sudo pip install --upgrade virtualenv
+virtualenv --system-site-packages "$VENV"
+source "$VENV/bin/activate"
+
+pip install -r requirements.txt
+pip install --upgrade https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-0.11.0rc1-py2-none-any.whl
