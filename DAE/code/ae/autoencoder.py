@@ -6,7 +6,7 @@ from os.path import join as pjoin
 import numpy as np
 import tensorflow as tf
 from utils.data import fill_feed_dict_ae, read_unlabeled_data
-from utils.data import read_data_sets, fill_feed_dict
+#from utils.data import read_data_sets, fill_feed_dict
 from utils.flags import FLAGS
 from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
@@ -98,7 +98,6 @@ class AutoEncoder(object):
         self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
         if i < self.__num_hidden_layers:
-          # THAT IS NOT CLEAR !!!
           
           # Hidden layer fixed weights (after pretraining before fine tuning)
           self[name_w + "_fixed"] = tf.Variable(tf.identity(self[name_w]),
@@ -166,7 +165,7 @@ class AutoEncoder(object):
       Tensor giving pretraining net or pretraining target
     """
     assert n > 0
-    assert n <= self.__num_hidden_layers
+    assert n <= self.__num_hidden_layers+1
 
     last_output = input_pl
     # use fixed weights for all the previous layers
@@ -182,6 +181,10 @@ class AutoEncoder(object):
       return last_output
 
     last_output = self._activate(last_output, self._w(n), self._b(n))
+
+    # check if we train an output layer
+    if(n== self.__num_hidden_layers+1):
+      return last_output
 
     out = self._activate(last_output, self._w(n), self._b(n, "_out"),
                          transpose_w=True)
@@ -201,7 +204,7 @@ class AutoEncoder(object):
     """
     last_output = input_pl
 
-    for i in xrange(self.__num_hidden_layers + 1):
+    for i in xrange(self.__num_hidden_layers): # +1 ?
       # Fine tuning will be done on these variables
       w = self._w(i + 1)
       b = self._b(i + 1)
@@ -274,7 +277,7 @@ def main_unsupervised():
     num_hidden = FLAGS.num_hidden_layers
     ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
                         for j in xrange(num_hidden)]
-    ae_shape = [FLAGS.DoF] + ae_hidden_shapes + [FLAGS.num_classes]
+    ae_shape = [FLAGS.DoF] + ae_hidden_shapes + [FLAGS.DoF]
 
     print('AE structure is ', ae_shape)
 
@@ -290,6 +293,7 @@ def main_unsupervised():
     noise = {j: getattr(FLAGS, "noise_{0}".format(j + 1))
              for j in xrange(num_hidden)}
 
+    # Train matrices between hidden layers
     for i in xrange(len(ae_shape) - 2):
       n = i + 1
       with tf.variable_scope("pretrain_{0}".format(n)):
@@ -331,8 +335,6 @@ def main_unsupervised():
           loss_summary, loss_value = sess.run([train_op, loss],
                                               feed_dict=feed_dict)
 
-          #print(loss_value.shape)
-          
 
           if step % 100 == 0:
 
@@ -341,104 +343,82 @@ def main_unsupervised():
 
             print(output)
 
-  return ae
+    # Train matrix between the last hidden layer and output layer
+    n = len(ae_shape)
+    with tf.variable_scope("pretrain_{0}".format(n)):
+      input_ = tf.placeholder(dtype=tf.float32,
+                              shape=(FLAGS.batch_size, ae_shape[0]),
+                              name='ae_input_pl')
+      target_ = tf.placeholder(dtype=tf.float32,
+                               shape=(FLAGS.batch_size, ae_shape[0]),
+                               name='ae_target_pl')
+      output_layer = ae.pretrain_net(input_, n)
+
+      loss = loss_reconstruction(output_layer, target_)
+      train_op, global_step = training(loss, learning_rates[i], i)
+
+      summary_dir = pjoin(FLAGS.summary_dir, 'pretraining_{0}'.format(n))
+
+      #tf.summary.scalar('cross_entropy', loss)
+
+      summary_op =  tf.summary.merge_all()
+
+      summary_writer = tf.summary.FileWriter(summary_dir,
+                                                graph=sess.graph,
+                                                flush_secs=FLAGS.flush_secs)
+
+      vars_to_init = ae.get_variables_to_init(n)
+      vars_to_init.append(global_step)
+      sess.run(tf.variables_initializer(vars_to_init))
+
+      print("\n\nTraning the output layer\n\n")
+      print("| Training Step | Reconstruction error |  Layer  |   Epoch  |")
+      print("|---------------|----------------------|---------|----------|")
+
+      for step in xrange(FLAGS.pretraining_epochs * num_train):
+        feed_dict = fill_feed_dict_ae(data.train, input_, target_, noise[i])
+
+        loss_summary, loss_value = sess.run([train_op, loss],
+                                              feed_dict=feed_dict)
 
 
-def main_supervised(ae):
-  with ae.session.graph.as_default():
-    sess = ae.session
+        if step % 100 == 0:
+
+          output = "| {0:>13} | {1:13.4f} | Layer {2} | Epoch {3}  |"\
+                     .format(step, loss_value, n, step // num_train + 1)
+          print(output)
+
+    # Show test error
+    print('Testing ...')
+
     input_pl = tf.placeholder(tf.float32, shape=(FLAGS.batch_size,
-                                                 FLAGS.image_pixels),
+                                                 FLAGS.DoF),
                               name='input_pl')
-    logits = ae.supervised_net(input_pl)
+    target_pl = tf.placeholder(tf.float32, shape=(FLAGS.batch_size,
+                                                 FLAGS.DoF),
+                              name='target_pl')
 
-    data = read_data_sets(FLAGS.data_dir)
-    num_train = data.train.num_examples
+    output = ae.supervised_net(input_pl)
 
-    labels_placeholder = tf.placeholder(tf.int32,
-                                        shape=FLAGS.batch_size,
-                                        name='target_pl')
+    loss = loss_reconstruction(target_pl, output)
 
-    loss = loss_supervised(logits, labels_placeholder)
-    train_op, global_step = training(loss, FLAGS.supervised_learning_rate)
-    eval_correct = evaluation(logits, labels_placeholder)
+    feed_dict = fill_feed_dict_ae(data.test, input_pl, target_pl, noise[i])
 
-    hist_summaries = [ae['biases{0}'.format(i + 1)]
-                      for i in xrange(ae.num_hidden_layers + 1)]
-    hist_summaries.extend([ae['weights{0}'.format(i + 1)]
-                           for i in xrange(ae.num_hidden_layers + 1)])
-
-    hist_summaries = [tf.histogram_summary(v.op.name + "_fine_tuning", v)
-                      for v in hist_summaries]
-    summary_op = tf.merge_summary(hist_summaries)
-
-    summary_writer = tf.train.SummaryWriter(pjoin(FLAGS.summary_dir,
-                                                  'fine_tuning'),
-                                            graph=sess.graph,
-                                            flush_secs=FLAGS.flush_secs)
-
-    vars_to_init = ae.get_variables_to_init(ae.num_hidden_layers + 1)
-    vars_to_init.append(global_step)
-    sess.run(tf.initialize_variables(vars_to_init))
-
-    steps = FLAGS.finetuning_epochs * num_train
-    for step in xrange(steps):
-      start_time = time.time()
-
-      feed_dict = fill_feed_dict(data.train,
-                                 input_pl,
-                                 labels_placeholder)
-
-      _, loss_value = sess.run([train_op, loss],
+    _, loss_value = sess.run([output, loss],
                                feed_dict=feed_dict)
 
-      duration = time.time() - start_time
+    # Print result to stdout.
+    print('Test loss = %.2f' % (loss_value))
 
-      # Write the summaries and print an overview fairly often.
-      if step % 100 == 0:
-        # Print status to stdout.
-        print('Step %d: loss = %.2f (%.3f sec)' % (step, loss_value, duration))
-        # Update the events file.
+    #test_sum = do_eval_summary("test_error",
+     #                              sess,
+      #                             eval_correct,
+       #                            input_pl,
+        #                           labels_placeholder,
+         #                          data.test)
 
-        summary_str = sess.run(summary_op, feed_dict=feed_dict)
-        summary_writer.add_summary(summary_str, step)
-        summary_img_str = sess.run(
-            tf.summary.image("training_images",
-                             tf.reshape(input_pl,
-                                        (FLAGS.batch_size,
-                                         FLAGS.image_size,
-                                         FLAGS.image_size, 1))),
-                             #max_images=FLAGS.batch_size),
-            feed_dict=feed_dict
-        )
-        summary_writer.add_summary(summary_img_str)
-
-      if (step + 1) % 1000 == 0 or (step + 1) == steps:
-        train_sum = do_eval_summary("training_error",
-                                    sess,
-                                    eval_correct,
-                                    input_pl,
-                                    labels_placeholder,
-                                    data.train)
-
-        val_sum = do_eval_summary("validation_error",
-                                  sess,
-                                  eval_correct,
-                                  input_pl,
-                                  labels_placeholder,
-                                  data.validation)
-
-        test_sum = do_eval_summary("test_error",
-                                   sess,
-                                   eval_correct,
-                                   input_pl,
-                                   labels_placeholder,
-                                   data.test)
-
-        summary_writer.add_summary(train_sum, step)
-        summary_writer.add_summary(val_sum, step)
-        summary_writer.add_summary(test_sum, step)
+  return ae
 
 if __name__ == '__main__':
   ae = main_unsupervised()
-  main_supervised(ae)
+  # main_supervised(ae)

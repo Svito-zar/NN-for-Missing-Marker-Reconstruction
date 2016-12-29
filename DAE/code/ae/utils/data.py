@@ -13,7 +13,7 @@ from flags import FLAGS
 import os
 
 import sys # for adding a python module from the folder
-sys.path.append('/home/taras/Documents/Code/BVH/parser') # address of the BVH parser
+sys.path.append('/home/taras/Code/Git/DAE-for-Mocap-Representation-Learning/BVH_format/parser') # address of the BVH parser
 from reader import MyReader
 
 
@@ -157,47 +157,6 @@ class DataSetPreTraining(object):
 
     return self._poses[start:end], self._poses[start:end]
 
-
-def read_data_sets(train_dir, fake_data=False, one_hot=False):
-  class DataSets(object):
-    pass
-  data_sets = DataSets()
-
-  if fake_data:
-    data_sets.train = DataSet([], [], fake_data=True)
-    data_sets.validation = DataSet([], [], fake_data=True)
-    data_sets.test = DataSet([], [], fake_data=True)
-    return data_sets
-
-  TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
-  TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
-  TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
-  TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
-  VALIDATION_SIZE = 5000
-
-  local_file = maybe_download(TRAIN_IMAGES, train_dir)
-  train_images = extract_images(local_file)
-
-  local_file = maybe_download(TRAIN_LABELS, train_dir)
-  train_labels = extract_labels(local_file, one_hot=one_hot)
-
-  local_file = maybe_download(TEST_IMAGES, train_dir)
-  test_images = extract_images(local_file)
-
-  local_file = maybe_download(TEST_LABELS, train_dir)
-  test_labels = extract_labels(local_file, one_hot=one_hot)
-
-  validation_images = train_images[:VALIDATION_SIZE]
-  validation_labels = train_labels[:VALIDATION_SIZE]
-  train_images = train_images[VALIDATION_SIZE:]
-  train_labels = train_labels[VALIDATION_SIZE:]
-
-  data_sets.train = DataSet(train_images, train_labels)
-  data_sets.validation = DataSet(validation_images, validation_labels)
-  data_sets.test = DataSet(test_images, test_labels)
-
-  return data_sets
-
 def read_file(fileName):
     """
     Reads a file from CMU MoCap dataset in BVH format
@@ -234,6 +193,8 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   input_data = np.array([])
   # go over all subfolders with the data
   for folder_numb in range(1,FLAGS.amount_of_subfolders+1,1):
+    if(folder_numb==4):
+      continue # there is no such a folder
     curr_dir = train_dir+'/0'+str(folder_numb)
     print('from the folder ' + curr_dir+'...')
     for filename in os.listdir(curr_dir):
@@ -267,8 +228,8 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   #print(input_data[0])
     
-  TEST_SIZE = 3000
-  VALIDATION_SIZE = 5000
+  TEST_SIZE = FLAGS.test_size
+  VALIDATION_SIZE = 5000 # FLAGS.validation_size
 
   train_data = input_data[TEST_SIZE:,:]
 
