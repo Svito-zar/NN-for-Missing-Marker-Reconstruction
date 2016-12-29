@@ -18,13 +18,12 @@ flags.DEFINE_integer("num_hidden_layers", 2, "Number of hidden layers") # should
 
 flags.DEFINE_integer('hidden1_units', 300,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 100,
+flags.DEFINE_integer('hidden2_units', 120,
                      'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 30,
+flags.DEFINE_integer('hidden3_units', 40,
                      'Number of units in hidden layer 3.')
 
 flags.DEFINE_integer('DoF', 171, 'Dimensionality of the single frame') # should be much more
-flags.DEFINE_integer('num_classes', 10, 'Number of classes')
 
 flags.DEFINE_float('pre_layer1_learning_rate', 0.0001,
                    'Initial learning rate.')
@@ -39,17 +38,19 @@ flags.DEFINE_float('noise_3', 0.50, 'Rate at which to set pixels to 0')
 
 # Constants
 flags.DEFINE_integer('seed', 1234, 'Random seed')
-flags.DEFINE_integer('image_size', 28, 'Image square size')
 
 flags.DEFINE_integer('batch_size', 100,
                      'Batch size. Must divide evenly into the dataset sizes.')
 
+flags.DEFINE_integer('test_size', 1000,
+                     'Size of the training dataset.')
+
 flags.DEFINE_float('supervised_learning_rate', 0.1,
                    'Supervised initial learning rate.')
 
-flags.DEFINE_integer('pretraining_epochs', 1, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 5, #60 originaly
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('finetuning_epochs', 2, #56 originaly
+flags.DEFINE_integer('finetuning_epochs', 1, #56 originaly
                      "Number of training epochs for "
                      "fine tuning supervised step")
 
@@ -61,10 +62,11 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 3, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
+#flags.DEFINE_string('data_dir','/storage/taras/CMU',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('summary_dir', home_out('summaries'),

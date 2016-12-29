@@ -13,31 +13,9 @@ from flags import FLAGS
 import os
 
 import sys # for adding a python module from the folder
-sys.path.append('/home/taras/Documents/Code/BVH/parser') # address of the BVH parser
+sys.path.append('/home/taras/Desktop/Work/Code/Git/DAE-for-Mocap-Representation-Learning/BVH_format/parser') # address of the BVH parser
+#sys.path.append('/home/taras/Code/Git/DAE-for-Mocap-Representation-Learning/BVH_format/parser') # address of the BVH parser
 from reader import MyReader
-
-
-def _read32(bytestream):
-  dt = np.dtype(np.uint32).newbyteorder('>')
-  return np.frombuffer(bytestream.read(4), dtype=dt)
-
-
-def extract_images(filename):
-  """Extract the images into a 4D uint8 numpy array [index, y, x, depth]."""
-  print('\nExtracting', filename)
-  with gzip.open(filename) as bytestream:
-    magic = _read32(bytestream)
-    if magic != 2051:
-      raise ValueError(
-          'Invalid magic number %d in MNIST image file: %s' %
-          (magic, filename))
-    num_images = _read32(bytestream)
-    rows = _read32(bytestream)
-    cols = _read32(bytestream)
-    buf = bytestream.read(rows * cols * num_images)
-    data = np.frombuffer(buf, dtype=np.uint8)
-    data = data.reshape(num_images, rows, cols, 1)
-    return data
 
 
 def dense_to_one_hot(labels_dense, num_classes=10):
@@ -47,23 +25,6 @@ def dense_to_one_hot(labels_dense, num_classes=10):
   labels_one_hot = np.zeros((num_labels, num_classes))
   labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
   return labels_one_hot
-
-
-def extract_labels(filename, one_hot=False):
-  """Extract the labels into a 1D uint8 numpy array [index]."""
-  print('Extracting', filename)
-  with gzip.open(filename) as bytestream:
-    magic = _read32(bytestream)
-    if magic != 2049:
-      raise ValueError(
-          'Invalid magic number %d in MNIST label file: %s' %
-          (magic, filename))
-    num_items = _read32(bytestream)
-    buf = bytestream.read(num_items)
-    labels = np.frombuffer(buf, dtype=np.uint8)
-    if one_hot:
-      return dense_to_one_hot(labels)
-    return labels
 
 
 class DataSet(object):
@@ -157,47 +118,6 @@ class DataSetPreTraining(object):
 
     return self._poses[start:end], self._poses[start:end]
 
-
-def read_data_sets(train_dir, fake_data=False, one_hot=False):
-  class DataSets(object):
-    pass
-  data_sets = DataSets()
-
-  if fake_data:
-    data_sets.train = DataSet([], [], fake_data=True)
-    data_sets.validation = DataSet([], [], fake_data=True)
-    data_sets.test = DataSet([], [], fake_data=True)
-    return data_sets
-
-  TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
-  TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
-  TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
-  TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
-  VALIDATION_SIZE = 5000
-
-  local_file = maybe_download(TRAIN_IMAGES, train_dir)
-  train_images = extract_images(local_file)
-
-  local_file = maybe_download(TRAIN_LABELS, train_dir)
-  train_labels = extract_labels(local_file, one_hot=one_hot)
-
-  local_file = maybe_download(TEST_IMAGES, train_dir)
-  test_images = extract_images(local_file)
-
-  local_file = maybe_download(TEST_LABELS, train_dir)
-  test_labels = extract_labels(local_file, one_hot=one_hot)
-
-  validation_images = train_images[:VALIDATION_SIZE]
-  validation_labels = train_labels[:VALIDATION_SIZE]
-  train_images = train_images[VALIDATION_SIZE:]
-  train_labels = train_labels[VALIDATION_SIZE:]
-
-  data_sets.train = DataSet(train_images, train_labels)
-  data_sets.validation = DataSet(validation_images, validation_labels)
-  data_sets.test = DataSet(test_images, test_labels)
-
-  return data_sets
-
 def read_file(fileName):
     """
     Reads a file from CMU MoCap dataset in BVH format
@@ -234,10 +154,15 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   input_data = np.array([])
   # go over all subfolders with the data
   for folder_numb in range(1,FLAGS.amount_of_subfolders+1,1):
+    if(folder_numb==4):
+      continue # there is no such a folder
     curr_dir = train_dir+'/0'+str(folder_numb)
     print('from the folder ' + curr_dir+'...')
     for filename in os.listdir(curr_dir):
       currSequence = read_file(curr_dir+'/'+filename)
+      # Do mean normalization : substract mean pose of the trial
+      mean = currSequence.mean(axis=0)
+      currSequence = currSequence - mean[np.newaxis,:]
       if input_data.size==0:
         input_data = np.array(currSequence)
       else:
@@ -254,11 +179,6 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   new_size = amount_of_frames - (amount_of_frames%FLAGS.batch_size)
   input_data = input_data[:new_size]
 
-  # Do mean normalization : substract mean pose
-  print('Normalizing the data ...')
-  mean = input_data.mean(axis=0)
-  input_data = input_data - mean[np.newaxis,:]
-
   # Scales all values in the input_data to be between 0 and 1 """
   input_data = input_data.copy()
   input_data -= input_data.min()
@@ -267,8 +187,8 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   #print(input_data[0])
     
-  TEST_SIZE = 3000
-  VALIDATION_SIZE = 5000
+  TEST_SIZE = FLAGS.test_size
+  VALIDATION_SIZE = 5000 # FLAGS.validation_size
 
   train_data = input_data[TEST_SIZE:,:]
 
