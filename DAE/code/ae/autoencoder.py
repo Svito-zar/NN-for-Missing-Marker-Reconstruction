@@ -353,7 +353,12 @@ def main_unsupervised():
     # Train matrix between the last hidden layer and output layer
     n = len(ae_shape)-1
     with tf.variable_scope("pretrain_{0}".format(n)):
-      
+      input_ = tf.placeholder(dtype=tf.float32,
+                              shape=(FLAGS.batch_size, ae_shape[0]),
+                              name='ae_input_pl')
+      target_ = tf.placeholder(dtype=tf.float32,
+                               shape=(FLAGS.batch_size, ae_shape[0]),
+                               name='ae_target_pl')
       output_layer = ae.pretrain_net(input_, n)
 
       loss = loss_reconstruction(output_layer, target_)
