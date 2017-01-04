@@ -6,7 +6,6 @@ from os.path import join as pjoin
 import numpy as np
 import tensorflow as tf
 from utils.data import fill_feed_dict_ae, read_unlabeled_data
-#from utils.data import read_data_sets, fill_feed_dict
 from utils.flags import FLAGS
 from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
@@ -143,6 +142,7 @@ class AutoEncoder(object):
       vars_to_init.append(self._b(n, "_out"))
 
     if 1 < n <= self.__num_hidden_layers+1:
+      # Fixed matrices for learning of deeper layers
       vars_to_init.append(self._w(n - 1, "_fixed"))
       vars_to_init.append(self._b(n - 1, "_fixed"))
 
@@ -153,7 +153,7 @@ class AutoEncoder(object):
     y = tf.sigmoid(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
     return y
 
-  def pretrain_net(self, input_pl, n, is_target=False):
+  def pretrain_net(self, input_pl, n, dropout, is_target=False):
     """Return net for step n training or target net
 
     Args:
@@ -168,8 +168,10 @@ class AutoEncoder(object):
     assert n > 0
     assert n <= self.__num_hidden_layers+1
 
-    last_output = input_pl
-    # use fixed weights for all the previous layers
+    #First - Apply Dropout
+    last_output = tf.nn.dropout(input_pl, dropout)
+    
+    # Then use fixed weights for all the previous layers
     for i in xrange(n - 1):
       w = self._w(i + 1, "_fixed")
       b = self._b(i + 1, "_fixed")
@@ -218,7 +220,7 @@ class AutoEncoder(object):
 loss_summaries = {}
 
 
-def training(loss, learning_rate, loss_key=None):
+def training(optimizer, global_step,loss, learning_rate, loss_key=None):
   """Sets up the training Ops.
 
   Creates a summarizer to track the loss over time in TensorBoard.
@@ -235,23 +237,18 @@ def training(loss, learning_rate, loss_key=None):
                 loss summaries for each pretraining stage
 
   Returns:
-    train_op: The Op for training.
+    train_op: The Op for training. """
 
-    if loss_key is not None:
+  if loss_key is not None:
     # Add a scalar summary for the snapshot loss.
     loss_summaries[loss_key] = tf.summary.scalar(loss.op.name, loss)
-    else:
+  else:
     tf.summary.scalar(loss.op.name, loss)
-  """
   
-  # Create the gradient descent optimizer with the given learning rate.
-  optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-  # Create a variable to track the global step.
-  global_step = tf.Variable(0, name='global_step', trainable=False)
   # Use the optimizer to apply the gradients that minimize the loss
   # (and also increment the global step counter) as a single training step.
   train_op = optimizer.minimize(loss, global_step=global_step)
-  return train_op, global_step
+  return train_op
 
 
 def loss_reconstruction(output, target):
@@ -285,130 +282,194 @@ def main_unsupervised():
     ae = AutoEncoder(ae_shape, sess)
 
     data = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
-    num_train = data.train.num_examples
+
+    print('We have ', data.train.num_sequences, ' train sequences')
+    
+    num_train_seq = data.train.num_sequences
 
     learning_rates = {j: getattr(FLAGS,
                                  "pre_layer{0}_learning_rate".format(j + 1))
-                      for j in xrange(num_hidden)}
+                      for j in xrange(num_hidden+1)}
 
-    noise = {j: getattr(FLAGS, "noise_{0}".format(j + 1))
-             for j in xrange(num_hidden)}
+    variance = {j: getattr(FLAGS, "variance_{0}".format(j + 1))
+             for j in xrange(num_hidden+1)}
 
-    input_ = tf.placeholder(dtype=tf.float32,
-                                shape=(FLAGS.batch_size, ae_shape[0]),
-                                name='ae_input_pl')
-    target_ = tf.placeholder(dtype=tf.float32,
-                                 shape=(FLAGS.batch_size, ae_shape[0]),
-                                 name='ae_target_pl')
+    keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+    dropout = FLAGS.dropout # (keep probability) value
+
+    variables_to_save = []
+
 
     # Train matrices between hidden layers
     for i in xrange(len(ae_shape) - 2):
       n = i + 1
       with tf.variable_scope("pretrain_{0}".format(n)):
+
+        input_ = tf.placeholder(dtype=tf.float32,
+                                shape=(None, ae_shape[0]),
+                                name='ae_input_pl')
+        target_ = tf.placeholder(dtype=tf.float32,
+                                 shape=(None, ae_shape[0]),
+                                 name='ae_target_pl')
         
-        layer = ae.pretrain_net(input_, n)
+        layer = ae.pretrain_net(input_,  n, dropout)
 
         with tf.name_scope("target"):
-          target_for_loss = ae.pretrain_net(target_, n, is_target=True)
+          target_for_loss = ae.pretrain_net(target_, n, dropout, is_target=True)
 
-        loss = loss_reconstruction(layer, target_for_loss)
-        train_op, global_step = training(loss, learning_rates[i], i)
+        with tf.name_scope("loss"):
+          loss = loss_reconstruction(layer, target_for_loss)
+
+        # Create a variable to track the global step.
+        global_step = tf.Variable(0, name='global_step', trainable=False)
+        
+        # create an optimizer
+        train_op = tf.train.GradientDescentOptimizer(learning_rates[i]).minimize(loss, global_step=global_step) #TODO: change to Adam
+
+        #train_op = tf.train.AdamOptimizer(learning_rate=learning_rates[i]).minimize(loss)
+        #adamOptimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08, use_locking=False, name='Adam')
+
+        print('Optimizer was created!')
+        
+        
+
+    
+        #Initialize variables
+        vars_to_init = ae.get_variables_to_init(n)
+        vars_to_init.append(global_step)
+        vars_to_init.append
+
+        sess.run(tf.variables_initializer(vars_to_init))
+        # TODO: change to the following line
+        # sess.run(tf.initialize_all_variables())
+        
+        variables_to_save.append(ae.get_variables_to_init( n))
 
         # Prepare for making a summary for TensorBoard
-
-        summary_op =  tf.summary.scalar('Average_reconstruction_error', loss) # tf.summary.merge_all()
 
         summary_dir = pjoin(FLAGS.summary_dir, 'pretraining_{0}'.format(n))
 
         summary_writer = tf.summary.FileWriter(summary_dir,
-                                                graph=sess.graph,
-                                                flush_secs=FLAGS.flush_secs)
+                                               graph=sess.graph,
+                                               flush_secs=FLAGS.flush_secs)
 
-        vars_to_init = ae.get_variables_to_init(n)
-        vars_to_init.append(global_step)
-        sess.run(tf.variables_initializer(vars_to_init))
+        loss_summary = tf.summary.scalar('Average_reconstruction_error', loss)
+
+        summary_op = tf.summary.merge([loss_summary])
 
         print("\n\n")
-        print("| Training Step | Error |  Layer  |   Epoch  |")
-        print("|---------------|----------------------|---------|----------|")
+        print("| Tr. Sequence | Error    |  Layer  |   Epoch  |")
+        print("|--------------|----------|---------|----------|")
 
-        for step in xrange(FLAGS.pretraining_epochs * num_train):
-          feed_dict = fill_feed_dict_ae(data.train, input_, target_, noise[i])
+        for step in xrange(FLAGS.pretraining_epochs * num_train_seq):
+          feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance[i], dropout)
 
           loss_summary, loss_value = sess.run([train_op, loss],
                                               feed_dict=feed_dict)
 
-
-          if step % 100 == 0:
+          if(step%100 == 0):
             # Write summary
             summary_str = sess.run(summary_op, feed_dict=feed_dict)
             summary_writer.add_summary(summary_str, step)
-            
+              
             # Print results of screen
-            output = "| {0:>13} | {1:13.4f} | Layer {2} | Epoch {3}  |"\
-                     .format(step, loss_value, n, step // num_train + 1)
+            output = "| {0:>12} | {1:8.4f} | Layer {2} | Epoch {3}  |"\
+                       .format(step, loss_value, n, step // num_train_seq + 1)
 
             print(output)
 
+        summary_writer.flush()
+
     # Train matrix between the last hidden layer and output layer
-    n = len(ae_shape)-1
+    i = len(ae_shape)-2
+    n = i + 1
+
+    dropout=1 # no dropout for the last layer training and testing
+    
     with tf.variable_scope("pretrain_{0}".format(n)):
+
       input_ = tf.placeholder(dtype=tf.float32,
-                              shape=(FLAGS.batch_size, ae_shape[0]),
-                              name='ae_input_pl')
+                                shape=(None, ae_shape[0]),
+                                name='ae_input_pl')
       target_ = tf.placeholder(dtype=tf.float32,
-                               shape=(FLAGS.batch_size, ae_shape[0]),
-                               name='ae_target_pl')
-      output_layer = ae.pretrain_net(input_, n)
+                                 shape=(None, ae_shape[0]),
+                                 name='ae_target_pl')
+      
+      output_layer = ae.pretrain_net(input_, n, dropout)
 
       loss = loss_reconstruction(output_layer, target_)
-      train_op, global_step = training(loss, learning_rates[i], i)
 
-      # Prepare for making a summary for TensorBoard
-      tf.summary.scalar('Average_reconstruction_error', loss)
+      test_error =tf.placeholder(dtype=tf.float32, shape=(), name='eval_error')
 
-      summary_op =  tf.summary.scalar('Average_reconstruction_error', loss) #tf.summary.merge_all()
+      loss_summary = tf.summary.scalar('Average_reconstruction_error', loss)
+      train_summary_op = tf.summary.merge([loss_summary])
+      test_summary_op =  tf.summary.scalar('Test_reconstr_error',test_error)
 
-      summary_dir = pjoin(FLAGS.summary_dir, 'pretraining_{0}'.format(n))
-      summary_writer = tf.summary.FileWriter(summary_dir)
+      tr_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_train')
+      tr_summary_writer = tf.summary.FileWriter(tr_summary_dir)
+      test_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_test')
+      test_summary_writer = tf.summary.FileWriter(test_summary_dir)
+      
 
+      # Create a variable to track the global step.
+      global_step = tf.Variable(0, name='global_step', trainable=False)
+    
+      #Initialize variables
       vars_to_init = ae.get_variables_to_init(n)
       vars_to_init.append(global_step)
+      vars_to_init.append
+
       sess.run(tf.variables_initializer(vars_to_init))
+        
+      variables_to_save.append(ae.get_variables_to_init( n))
 
-      print("\n\nTesting after each epoch of training of the last layer:\n\n")
+      # create an optimizer
+      train_op = tf.train.GradientDescentOptimizer(learning_rates[i]).minimize(loss, global_step=global_step)
+      #train_op = training(adamOptimizer,global_step,loss, learning_rates[i], i)
 
-      accumulated_train_error = 0
-      accumulated_test_error = 0
+      variables_to_save.append(ae.get_variables_to_init(n))
 
-      for step in xrange(FLAGS.pretraining_epochs * num_train):
-        feed_dict = fill_feed_dict_ae(data.train, input_, target_, noise[i])
+      print("\n\nTesting after each 100th sequence of training of the last layer:\n\n")
 
+      for step in xrange(FLAGS.last_layer_epochs * num_train_seq):
+
+        # Train
+        feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance[i], dropout)
         loss_summary, loss_value = sess.run([train_op, loss],
                                               feed_dict=feed_dict)
-        if step % 100 == 0:
-          summary_str = sess.run(summary_op, feed_dict=feed_dict)
-          summary_writer.add_summary(summary_str, step)
 
-        # Print test error after each batch
-        if step % num_train == 0:
 
-          accumulated_train_error = 0
-          accumulated_test_error = 0
-      
-          numb_of_batches = int(FLAGS.test_size / FLAGS.batch_size)
-          for batch in range(numb_of_batches):    
-            # Collect data for Test errors
-            feed_dict = fill_feed_dict_ae(data.test, input_, target_, noise[i])
-            test_error = sess.run(loss,feed_dict=feed_dict)
-            accumulated_test_error+= test_error
-            #print('Test error on', batch, ' batch is ', test_error)
-        
-          # Write summary for the test data
-          average_test_error = accumulated_test_error / numb_of_batches
-          print('Average test error : ', average_test_error )
+        if(step%100 == 0):
+          # Update the events file.
+          train_sum = sess.run(train_summary_op, feed_dict=feed_dict)
+          tr_summary_writer.add_summary(train_sum, step)
 
+          #Evaluate on the test sequences
+          error_sum=0
+          num_test_seq = data.test.num_sequences
+          for test_seq in range(num_test_seq):
+            feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, variance[i], dropout)
+            curr_err = sess.run(loss, feed_dict=feed_dict)
+            error_sum+= curr_err
+            test_error_ = error_sum/num_test_seq
+          test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
+          test_summary_writer.add_summary(test_sum, step)
+
+          # Print result to stdout.
+          print('Step %d: loss = %.2f' % (step, test_error_))
+          
+
+      summary_writer.flush()
+
+    # Create a saver
+    saver = tf.train.Saver(np.concatenate(variables_to_save, axis=0).tolist())
+
+    # Save a model
+    saver.save(sess,FLAGS.params_file) #TODO : do we need it?
+  
   return ae
+    
+ 
 
 if __name__ == '__main__':
   ae = main_unsupervised()

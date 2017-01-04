@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+# Remove old summaries
+rm -r /home/taras/tmp/MoCap/summaries
+
+# Run the program itself
+python code/run.py
+
+# Start the tensorboard with the new data
+#tensorboard --logdir=/home/taras/tmp/MoCap/summaries/ --port 6006
+
+

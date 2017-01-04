@@ -8,51 +8,54 @@ import tensorflow as tf
 
 
 def home_out(path):
-  return pjoin(os.environ['HOME'], 'tmp', 'mnist', path)
+  return pjoin(os.environ['HOME'], 'tmp', 'MoCap', path)
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Autoencoder Architecture Specific Flags
-flags.DEFINE_integer("num_hidden_layers", 3, "Number of hidden layers") # should be 3
+flags.DEFINE_integer("num_hidden_layers", 2, "Number of hidden layers") # should be 3
 
-flags.DEFINE_integer('hidden1_units', 300,
+flags.DEFINE_integer('hidden1_units', 200,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 120,
+flags.DEFINE_integer('hidden2_units', 40,
                      'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 40,
+flags.DEFINE_integer('hidden3_units', 20,
                      'Number of units in hidden layer 3.')
 
 flags.DEFINE_integer('DoF', 171, 'Dimensionality of the single frame') # should be much more
 
-flags.DEFINE_float('pre_layer1_learning_rate', 0.0001,
+# Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
+flags.DEFINE_float('pre_layer1_learning_rate', 0.0003,
                    'Initial learning rate.')
-flags.DEFINE_float('pre_layer2_learning_rate', 0.0001,
+flags.DEFINE_float('pre_layer2_learning_rate', 0.01,
                    'Initial learning rate.')
-flags.DEFINE_float('pre_layer3_learning_rate', 0.0001,
+flags.DEFINE_float('pre_layer3_learning_rate', 0.001,
+                   'Initial learning rate.')
+flags.DEFINE_float('pre_layer4_learning_rate', 0.01,
                    'Initial learning rate.')
 
-flags.DEFINE_float('noise_1', 0.50, 'Rate at which to set pixels to 0')
-flags.DEFINE_float('noise_2', 0.50, 'Rate at which to set pixels to 0')
-flags.DEFINE_float('noise_3', 0.50, 'Rate at which to set pixels to 0')
+flags.DEFINE_float('variance_1', 0.02, 'Standart deviation of the gaussian noise added at layer 1')
+flags.DEFINE_float('variance_2', 0.03, 'Standart deviation of the gaussian noise added at layer 2')
+flags.DEFINE_float('variance_3', 0.005, 'Standart deviation of the gaussian noise added at layer 3')
+flags.DEFINE_float('variance_4', 0.016, 'Standart deviation of the gaussian noise added at layer 4')
 
 # Constants
 flags.DEFINE_integer('seed', 1234, 'Random seed')
 
-flags.DEFINE_integer('batch_size', 100,
-                     'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('test_size', 10000,
-                     'Size of the training dataset.')
+flags.DEFINE_integer('test_sequences_numb', 5,
+                     'Amount of the testing sequences.')
 
 flags.DEFINE_float('supervised_learning_rate', 0.1,
                    'Supervised initial learning rate.')
 
-flags.DEFINE_integer('pretraining_epochs', 8, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 160, #60 originaly
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('finetuning_epochs', 1, #56 originaly
-                     "Number of training epochs for "
-                     "fine tuning supervised step")
+
+flags.DEFINE_integer('last_layer_epochs', 250, #56 originaly
+                     "Number of training epochs for the last layer")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
                    'Value to use as buffer to avoid '
@@ -62,12 +65,14 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 10, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
-#flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
-flags.DEFINE_string('data_dir','/storage/taras/CMU',
+flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
+#flags.DEFINE_string('data_dir','/storage/taras/CMU',
                     'Directory to put the training data.')
+flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
+                    'File for saving the parameters values')
 
 flags.DEFINE_string('summary_dir', home_out('summaries'),
                     'Directory to put the summary data')
