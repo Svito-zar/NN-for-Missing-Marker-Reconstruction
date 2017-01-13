@@ -18,7 +18,7 @@ flags.DEFINE_integer("num_hidden_layers", 3, "Number of hidden layers") # should
 
 flags.DEFINE_integer('hidden1_units', 256,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 32,
+flags.DEFINE_integer('hidden2_units', 16,
                      'Number of units in hidden layer 2.') # 2000 originaly
 flags.DEFINE_integer('hidden3_units', 64,
                      'Number of units in hidden layer 3.')
@@ -30,7 +30,7 @@ flags.DEFINE_float('pretraining_learning_rate', 0.0003,
                    'Initial learning rate.')
 
 # It is a question wheather adding noise 
-flags.DEFINE_float('variance_of_noise', 0.02, 'Standart deviation of the gaussian noise added to every point in input')
+flags.DEFINE_float('variance_of_noise', 0.1, 'Standart deviation of the gaussian noise added to every point in input')
 
 # Constants
 flags.DEFINE_integer('seed', 1234, 'Random seed')
@@ -40,14 +40,17 @@ flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 flags.DEFINE_integer('test_sequences_numb', 5,
                      'Amount of the testing sequences.')
 
+flags.DEFINE_integer('batch_size', 1000,
+                     'Size of the mini batch')
+
 flags.DEFINE_float('supervised_learning_rate', 0.1,
                    'Supervised initial learning rate.')
 
-flags.DEFINE_integer('pretraining_epochs', 300, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 60, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('last_layer_epochs', 250, #56 originaly
-                     "Number of training epochs for the last layer")
+flags.DEFINE_integer('middle_layer', 2,
+                     "Which hidden layer is view as a middle layer with the representation")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
                    'Value to use as buffer to avoid '
