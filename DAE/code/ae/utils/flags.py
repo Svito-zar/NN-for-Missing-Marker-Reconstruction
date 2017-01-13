@@ -14,31 +14,23 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Autoencoder Architecture Specific Flags
-flags.DEFINE_integer("num_hidden_layers", 2, "Number of hidden layers") # should be 3
+flags.DEFINE_integer("num_hidden_layers", 3, "Number of hidden layers") # should be 3
 
-flags.DEFINE_integer('hidden1_units', 200,
+flags.DEFINE_integer('hidden1_units', 256,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 40,
+flags.DEFINE_integer('hidden2_units', 32,
                      'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 20,
+flags.DEFINE_integer('hidden3_units', 64,
                      'Number of units in hidden layer 3.')
 
 flags.DEFINE_integer('DoF', 171, 'Dimensionality of the single frame') # should be much more
 
 # Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
-flags.DEFINE_float('pre_layer1_learning_rate', 0.0003,
-                   'Initial learning rate.')
-flags.DEFINE_float('pre_layer2_learning_rate', 0.01,
-                   'Initial learning rate.')
-flags.DEFINE_float('pre_layer3_learning_rate', 0.001,
-                   'Initial learning rate.')
-flags.DEFINE_float('pre_layer4_learning_rate', 0.01,
+flags.DEFINE_float('pretraining_learning_rate', 0.0003,
                    'Initial learning rate.')
 
-flags.DEFINE_float('variance_1', 0.02, 'Standart deviation of the gaussian noise added at layer 1')
-flags.DEFINE_float('variance_2', 0.03, 'Standart deviation of the gaussian noise added at layer 2')
-flags.DEFINE_float('variance_3', 0.005, 'Standart deviation of the gaussian noise added at layer 3')
-flags.DEFINE_float('variance_4', 0.016, 'Standart deviation of the gaussian noise added at layer 4')
+# It is a question wheather adding noise 
+flags.DEFINE_float('variance_of_noise', 0.02, 'Standart deviation of the gaussian noise added to every point in input')
 
 # Constants
 flags.DEFINE_integer('seed', 1234, 'Random seed')
@@ -51,7 +43,7 @@ flags.DEFINE_integer('test_sequences_numb', 5,
 flags.DEFINE_float('supervised_learning_rate', 0.1,
                    'Supervised initial learning rate.')
 
-flags.DEFINE_integer('pretraining_epochs', 160, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 300, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('last_layer_epochs', 250, #56 originaly

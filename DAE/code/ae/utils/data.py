@@ -148,14 +148,17 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   # go over all folders with the data
   print('Reading BVH files from ', FLAGS.amount_of_subfolders, ' folders : ' )
   train_dir = FLAGS.data_dir
+  
    # It is very tricky to read the data into a list of arrays of a different sizes
    # so we are using a special structure deque() for that
   input_data = deque()
   numb_of_folders=FLAGS.amount_of_subfolders
+  if(numb_of_folders>4):
+      numb_of_folders=numb_of_folders+1 # since we skip the 4th one
+      
   # go over all subfolders with the data putting them all into one list
   for folder_numb in range(1,numb_of_folders+1,1):
     if(folder_numb==4):
-      numb_of_folders=numb_of_folders+1 # since we skip one
       continue
     if(folder_numb<10):
       curr_dir = train_dir+'/0'+str(folder_numb)
@@ -196,6 +199,11 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   # TODO: do I need a validation dataset?
   VALIDATION_SIZE = 1 # FLAGS.validation_size
+
+  # Shuffle the data
+  perm = np.arange(amount_of_strings)
+  np.random.shuffle(perm)
+  input_data =  input_data[perm]
 
   train_data = input_data[TEST_SEQUENCES_NUMBER:]
 
