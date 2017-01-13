@@ -5,6 +5,7 @@ from os.path import join as pjoin
 
 import numpy as np
 import tensorflow as tf
+import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data
 from utils.flags import FLAGS
 from utils.eval import loss_supervised, evaluation, do_eval_summary
@@ -180,6 +181,8 @@ def main_unsupervised():
   with tf.Graph().as_default() as g:
     sess = tf.Session()
 
+    start_time = time.time()
+
     # Get variables
     num_hidden = FLAGS.num_hidden_layers
     ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
@@ -203,7 +206,6 @@ def main_unsupervised():
     global_step = tf.Variable(0, name='global_step', trainable=False)
     
     # Create a trainer
-
     amount_of_layers = len(ae_shape)-1 # amount of layers
     
     with tf.variable_scope("pretrain"):
@@ -230,7 +232,11 @@ def main_unsupervised():
 
         # Get the data
         data = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
-        num_train_seq = data.train.num_sequences
+
+        reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
+        
+        #num_train_seq = data.train.num_sequences
+        batch_size = FLAGS.batch_size
 
         # Get variables for saving
         variables_to_save = []
@@ -261,31 +267,31 @@ def main_unsupervised():
         print("| Tr. Sequence | Error    |   Epoch  |")
         print("|--------------|----------|----------|")
 
-        for step in xrange(FLAGS.pretraining_epochs * num_train_seq):
+        for step in xrange(FLAGS.pretraining_epochs * batch_size):
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
           loss_summary, loss_value = sess.run([train_op, loss],
                                               feed_dict=feed_dict)
 
-          if(step%100 == 0):
+          if(step%50 == 0):
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict=feed_dict)
             tr_summary_writer.add_summary(train_summary, step)
               
             # Print results of screen
             output = "| {0:>12} | {1:8.4f} | Epoch {2}  |"\
-                       .format(step, loss_value, step // num_train_seq + 1)
+                       .format(step, loss_value, step // batch_size + 1)
 
             print(output)
 
             #Evaluate on the test sequences
             error_sum=0
-            num_test_seq = data.test.num_sequences
-            for test_seq in range(num_test_seq):
+            num_test_batches = int(data.test.num_examples / batch_size)
+            for test_batch in range(num_test_batches):
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
               curr_err = sess.run(test_loss, feed_dict=feed_dict)
               error_sum+= curr_err
-              test_error_ = error_sum/num_test_seq
+              test_error_ = error_sum/num_test_batches
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, step)
 
@@ -294,6 +300,11 @@ def main_unsupervised():
 
     # Save a model
     saver.save(sess,FLAGS.params_file) #TODO : do we need it?
+
+    duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
+
+    print("The program was running was %.3f  min with %.3f min for reading" % (duration, reading_time))
+    #print('Step %d: loss = %.2f (%.3f sec)' % (step, loss_value, duration))
   
   return ae
     
