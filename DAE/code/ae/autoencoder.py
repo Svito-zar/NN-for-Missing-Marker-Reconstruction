@@ -178,9 +178,9 @@ def loss_reconstruction(output, target):
       net_output_tf = tf.convert_to_tensor(output, name='input')
       target_tf = tf.convert_to_tensor(target, name='target')
       # Euclidean distance between net_output_tf,target_tf
-      l2diff = tf.sqrt( tf.reduce_sum(tf.square(tf.sub(net_output_tf, target_tf)),
-                                    reduction_indices=1)) # do we need a square root here?
-      return tf.reduce_mean(l2diff,reduction_indices=0)
+      l2diff =  tf.nn.l2_loss(net_output_tf- target_tf)
+      return l2diff
+    #tf.reduce_mean(l2diff,reduction_indices=0)
 
 def main_unsupervised():
   """ Unsupervised pretraining of the autoencoder
@@ -232,7 +232,6 @@ def main_unsupervised():
         with tf.name_scope("loss"):
           loss = loss_reconstruction(output, target_)
 
-
         # create an optimizer
         optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.9, beta2=0.999, epsilon=1e-08, use_locking=False, name='Adam')
         train_op = optimizer.minimize(loss, global_step=global_step)
@@ -276,10 +275,15 @@ def main_unsupervised():
         print("|--------------|----------|----------|")
 
         for step in xrange(FLAGS.pretraining_epochs * num_train_seq):
+
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
-          loss_summary, loss_value = sess.run([train_op, loss],
+          loss_summary, loss_value, curr_input  = sess.run([train_op, loss, input_],
                                               feed_dict=feed_dict)
+
+          
+          # We need to know home many snippets there was in a current sequence to get the proper normalization
+          snippets_amount = curr_input.shape[0]
 
           if(step%50 == 0):
             # Write summary
@@ -288,8 +292,7 @@ def main_unsupervised():
               
             # Print results of screen
             output = "| {0:>12} | {1:8.4f} | Epoch {2}  |"\
-                       .format(step, loss_value, step // num_train_seq + 1)
-
+                       .format(step, loss_value // snippets_amount , step // num_train_seq + 1)
             print(output)
 
             #Evaluate on the test sequences
@@ -297,13 +300,13 @@ def main_unsupervised():
             num_test_seq = data.test.num_sequences
             for test_seq in range(num_test_seq):
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
-              curr_err = sess.run(test_loss, feed_dict=feed_dict)
-              error_sum+= curr_err
-              test_error_ = error_sum/num_test_seq
+              curr_err, curr_input = sess.run([test_loss, input_], feed_dict=feed_dict)
+              error_sum+= curr_err //  curr_input.shape[0]
+            test_error_ = error_sum/num_test_seq
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, step)
 
-    print("Final train error was %.3f, while evarage test error - %.3f." % ( loss_value, test_error_))
+    print("Final train error was %.3f, while evarage test error - %.3f." % ( loss_value // snippets_amount , test_error_))
 
     # Create a saver
     saver = tf.train.Saver(np.concatenate(variables_to_save, axis=0).tolist())

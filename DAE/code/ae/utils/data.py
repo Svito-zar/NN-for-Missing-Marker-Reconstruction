@@ -44,6 +44,8 @@ class DataSet(object):
     self._labels = labels
     self._epochs_completed = 0
     self._index_in_epoch = 0
+    self._min = 0 # the smallest value in the dataset
+    self._max = 0 # the biggest values in the dataset
 
   @property
   def sequences(self):
@@ -165,7 +167,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
     else:
       curr_dir = train_dir+'/'+str(folder_numb)
     print(curr_dir)
-    for filename in os.listdir(curr_dir ):
+    for filename in os.listdir(curr_dir):
       input_data.append(mean_normalization(read_file(curr_dir+'/'+filename)) )
                  
   
@@ -187,12 +189,12 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   # Scales all values in the input_data to be between 0 and 1 """
   minimums = [array.min() for array in input_data]
   maximums = [array.max() for array in input_data]
-  min_val = min(minimums)
-  input_data -= min_val
+  data_sets.min_val = min(minimums)
+  input_data -= data_sets.min_val
   eps=1e-8
-  max_val = max(maximums)
-  input_data *= 1.0 / (max_val  + eps)
-  print('Minumum and maximum values in the dataset are : ',min_val,max_val)
+  data_sets.max_val = max(maximums)
+  input_data *= 1.0 / (data_sets.max_val  + eps)
+  #print('Minumum and maximum values in the dataset are : ',data_sets.min_val,data_sets.max_val)
 
     
   TEST_SEQUENCES_NUMBER = FLAGS.test_sequences_numb
