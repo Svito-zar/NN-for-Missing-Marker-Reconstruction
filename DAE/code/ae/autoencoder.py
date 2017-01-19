@@ -178,7 +178,7 @@ def loss_reconstruction(output, target):
       net_output_tf = tf.convert_to_tensor(output, name='input')
       target_tf = tf.convert_to_tensor(target, name='target')
       # Euclidean distance between net_output_tf,target_tf
-      l2diff = tf.sqrt( tf.reduce_sum(tf.square(tf.sub(net_output_tf, target_tf)),
+      l2diff = tf.sqrt( tf.reduce_sum(tf.square(tf.sub(net_output_tf, target_tf)), # TODO : switch to tf.nn.l2_loss
                                     reduction_indices=1)) # do we need a square root here?
       return tf.reduce_mean(l2diff,reduction_indices=0)
 
@@ -276,6 +276,7 @@ def main_unsupervised():
         print("|--------------|----------|----------|")
 
         for step in xrange(FLAGS.pretraining_epochs * num_train_seq):
+
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
           loss_summary, loss_value = sess.run([train_op, loss],
@@ -289,7 +290,6 @@ def main_unsupervised():
             # Print results of screen
             output = "| {0:>12} | {1:8.4f} | Epoch {2}  |"\
                        .format(step, loss_value, step // num_train_seq + 1)
-
             print(output)
 
             #Evaluate on the test sequences
@@ -299,7 +299,7 @@ def main_unsupervised():
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
               curr_err = sess.run(test_loss, feed_dict=feed_dict)
               error_sum+= curr_err
-              test_error_ = error_sum/num_test_seq
+            test_error_ = error_sum/num_test_seq
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, step)
 
