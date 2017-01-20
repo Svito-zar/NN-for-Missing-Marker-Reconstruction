@@ -17,6 +17,11 @@ sys.path.append('/home/taras/Documents/Code/BVH/parser') # address of the BVH pa
 from reader import MyReader
 
 
+def _read32(bytestream):
+  dt = np.dtype(np.uint32).newbyteorder('>')
+  return np.frombuffer(bytestream.read(4), dtype=dt)
+
+
 def dense_to_one_hot(labels_dense, num_classes=10):
   """Convert class labels from scalars to one-hot vectors."""
   num_labels = labels_dense.shape[0]
@@ -117,47 +122,6 @@ class DataSetPreTraining(object):
 
     return self._poses[start:end]
 
-
-def read_data_sets(train_dir, fake_data=False, one_hot=False):
-  class DataSets(object):
-    pass
-  data_sets = DataSets()
-
-  if fake_data:
-    data_sets.train = DataSet([], [], fake_data=True)
-    data_sets.validation = DataSet([], [], fake_data=True)
-    data_sets.test = DataSet([], [], fake_data=True)
-    return data_sets
-
-  TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
-  TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
-  TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
-  TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
-  VALIDATION_SIZE = 5000
-
-  local_file = maybe_download(TRAIN_IMAGES, train_dir)
-  train_images = extract_images(local_file)
-
-  local_file = maybe_download(TRAIN_LABELS, train_dir)
-  train_labels = extract_labels(local_file, one_hot=one_hot)
-
-  local_file = maybe_download(TEST_IMAGES, train_dir)
-  test_images = extract_images(local_file)
-
-  local_file = maybe_download(TEST_LABELS, train_dir)
-  test_labels = extract_labels(local_file, one_hot=one_hot)
-
-  validation_images = train_images[:VALIDATION_SIZE]
-  validation_labels = train_labels[:VALIDATION_SIZE]
-  train_images = train_images[VALIDATION_SIZE:]
-  train_labels = train_labels[VALIDATION_SIZE:]
-
-  data_sets.train = DataSet(train_images, train_labels)
-  data_sets.validation = DataSet(validation_images, validation_labels)
-  data_sets.test = DataSet(test_images, test_labels)
-
-  return data_sets
-
 def read_file(fileName):
     """
     Reads a file from CMU MoCap dataset in BVH format
@@ -172,18 +136,23 @@ def read_file(fileName):
     # Read the data
     reader = MyReader(fileName);
     reader.read();
-    array = np.array(reader.points) # use 3d coordinates
-    # Check amount of dimensions
-    if(array.ndim != 3):
-        raise ValueError('Input array from the bvhReader is not 3d !')
-    # Reshape : T * D * N -> T * N * D
-    timeSteps, dimensionality, jointsAmount = array.shape
-    array = np.transpose(array,(0,2,1))
-    # Reshape : T * N * D -> T * ND
-    sequence = np.reshape(array, (timeSteps,dimensionality * jointsAmount))
+    sequence = np.array(reader.channels) # use 3d coordinates
     return sequence
 
 def read_unlabeled_data(train_dir, amount_of_subfolders):
+  """
+    Reads a all the data from CMU MoCap dataset in BVH format
+     
+    Args:
+        train_dir:              directore with the data
+        amount_of_subfolders:   amount of sibfolders in this directory we want to use
+    Returns:
+        datasets:               object, containing data_sets.train, data_sets.test and data_sets.validation datasets
+        min_val:                minimal value in the dataset
+        max_val:                maximal value in the dataset
+ 
+    """
+  
   class DataSets(object):
     pass
   data_sets = DataSets()
@@ -222,14 +191,16 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   # Do mean normalization : substract mean pose
   print('Normalizing the data ...')
-  mean = input_data.mean(axis=0)
-  input_data = input_data - mean[np.newaxis,:]
+  mean_pose = input_data.mean(axis=0)
+  input_data = input_data - mean_pose [np.newaxis,:]
 
   # Scales all values in the input_data to be between 0 and 1 """
   input_data = input_data.copy()
-  input_data -= input_data.min()
+  min_val = input_data.min()
+  input_data -= min_val
   eps=1e-8
-  input_data *= 1.0 / (input_data.max() + eps)
+  max_val = input_data.max()
+  input_data *= 1.0 / (max_val + eps)
 
   #print(input_data[0])
     
@@ -251,7 +222,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   print (str(validation_data.shape[0]) + ' poses will be used for validation')
   print (str(train_data.shape[0]) + ' poses will be used for training')
   
-  return data_sets
+  return data_sets, min_val, max_val, mean_pose
 
 
 ''' Add Gaussian random vectors with zero mean and given variance '''

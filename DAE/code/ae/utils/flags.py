@@ -23,7 +23,7 @@ flags.DEFINE_integer('hidden2_units', 16,
 flags.DEFINE_integer('hidden3_units', 64,
                      'Number of units in hidden layer 3.')
 
-flags.DEFINE_integer('DoF', 171, 'Dimensionality of the single frame') # should be much more
+flags.DEFINE_integer('DoF', 132, 'Dimensionality of the single frame') # should be much more
 
 # Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
 flags.DEFINE_float('pretraining_learning_rate', 0.0003,
@@ -46,7 +46,7 @@ flags.DEFINE_integer('batch_size', 1000,
 flags.DEFINE_float('supervised_learning_rate', 0.1,
                    'Supervised initial learning rate.')
 
-flags.DEFINE_integer('pretraining_epochs', 60, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 4, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 2,
@@ -60,7 +60,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 10, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
