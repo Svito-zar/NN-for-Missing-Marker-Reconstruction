@@ -16,12 +16,10 @@ from utils.utils import tile_raster_images
 class AutoEncoder(object):
   """Generic deep autoencoder.
 
-  Autoencoder used for full training cycle, including
-  unsupervised pretraining layers and final fine tuning.
+  Autoencoder used for full training cycle.
   The user specifies the structure of the neural net
   by specifying number of inputs, the number of hidden
-  units for each layer and the number of final output
-  logits.
+  units for each layer and the number of final outputs.
   """
   _weights_str = "weights{0}"
   _biases_str = "biases{0}"
@@ -114,44 +112,39 @@ class AutoEncoder(object):
   def _b(self, n, suffix=""):
     return self[self._biases_str.format(n) + suffix]
 
-  def get_variables_to_init(self, n):
-    """Return variables that need initialization
-
-    This method aides in the initialization of variables
-    before training begins at step n. The returned
-    list should be than used as the input to
-    tf.initialize_variables
-
-    Args:
-      n: int giving step of training
+  def get_variables(self):
+    """Return list of all variables of Autoencoder
     """
-    assert n > 0
-    assert n <= self.__num_hidden_layers + 1
 
-    vars_to_init = [self._w(n), self._b(n)]
+    vars=[]
 
-    if n <= self.__num_hidden_layers:
-      vars_to_init.append(self._b(n, "_out"))
+    for n in range(self.__num_hidden_layers):
+      vars.append(self._w(n+1))
+      vars.append(self._b(n+1))
 
-    return vars_to_init
+    return vars
 
   @staticmethod
   def _activate(x, w, b, transpose_w=False):
-    y = tf.sigmoid(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
+    y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
-  def pretrain_net(self, numb_layers, input_pl, dropout):
+  def run_net(self, input_pl, dropout, just_middle = False):
       """Get the output of the autoencoder
 
       Args:
-        numb_layers:    untill which layer should network run
-        input_pl: tf placeholder for ae input data
-        dropout:  how much of the input neurons will be activated, value in [0,1]
+        input_pl:     tf placeholder for ae input data
+        dropout:      how much of the input neurons will be activated, value in [0,1]
+        just_middle : will indicate if we want to extract only the middle layer of the network
       Returns:
-        Tensor of output after 'numb_layers' layers
+        Tensor of output
       """
 
-      assert numb_layers <= self.__num_hidden_layers+1
+      if(~just_middle): # if not middle layer
+        numb_layers = self.__num_hidden_layers+1
+      else:
+        numb_layers = FLAGS.middle_layer
+      
       #First - Apply Dropout
       last_output = tf.nn.dropout(input_pl, dropout)
 
@@ -163,6 +156,41 @@ class AutoEncoder(object):
         last_output = self._activate(last_output, w, b)
 
       return last_output
+
+  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
+    """ Writing a middle layer into the matlab file
+
+    Args:
+      ae:                     ae, middle layer of which we want to save
+      input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
+      output_seq_file_name:   name of the file in which we will write a middle layer of the AE
+      name:                   name of the  'trial' for these sequence
+    Returns:
+      nothing
+    """
+    print('\nExtracting middle layer for a test sequence...')
+    
+    sess = self.__sess
+      
+    # get input sequnce
+    currSequence = read_file(input_seq_file_name)
+
+    # define tensors
+    input_ = tf.placeholder(dtype=tf.float32,
+                                  shape=(None, FLAGS.DoF),
+                                  name='ae_input_pl')
+    # Define the size of current input sequence
+    self.__curr_batch_size = sess.run(tf.shape(input_ )[0], feed_dict={input_ : currSequence})
+
+    # Define on an operator
+    middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout
+      
+    # for each snippet in a sequence
+    # pass through the network untill the middle layer
+    middle = sess.run(middle_op, feed_dict={input_: currSequence})
+      
+    # save it into a file
+    sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})  
 
 
 def loss_reconstruction(output, target):
@@ -226,23 +254,23 @@ def main_unsupervised():
                                  shape=(FLAGS.batch_size, ae_shape[0]),
                                  name='ae_target_pl')
         
-        output = ae.pretrain_net(ae.num_hidden_layers+1, input_, dropout)
+        output = ae.run_net(input_, dropout)
 
         with tf.name_scope("loss"):
           loss = loss_reconstruction(output, target_)
 
 
         # create an optimizer
-        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.9, beta2=0.999, epsilon=1e-08, use_locking=False, name='Adam')
-        train_op = optimizer.minimize(loss, global_step=global_step)
+        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
+        train_op = optimizer.minimize(loss, global_step=global_step, name='Adam_optimizer')
 
         # Initialize variables
         sess.run(tf.global_variables_initializer())
 
         # Get the data
-        data, min_val, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
+        data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
 
-        print('The minimum value in the dataset after substracting the mean pose was ', min_val, ' while the maximum was ', max_val)
+        print('The maximum value in the dataset after substracting the mean pose was', max_val)
 
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
         
@@ -250,9 +278,16 @@ def main_unsupervised():
         batch_size = FLAGS.batch_size
 
         # Get variables for saving
-        variables_to_save = []
-        for layer in range(amount_of_layers):
-          variables_to_save.append(ae.get_variables_to_init(layer+1))
+        variables_to_save = ae.get_variables()
+
+         # Create a saver
+        saver = tf.train.Saver(variables_to_save) #(np.concatenate(variables_to_save, axis=0).tolist())
+
+        # Restore variables
+        #print('I am restoring saved variables...')
+        #saver.restore(sess, FLAGS.params_file)
+
+        # print(variables_to_save)
 
         # Prepare for making a summary for TensorBoard
 
@@ -267,101 +302,63 @@ def main_unsupervised():
         test_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_test')
         test_summary_writer = tf.summary.FileWriter(test_summary_dir)
 
-        test_output = ae.pretrain_net(ae.num_hidden_layers+1, input_, 1) # we do not have dropout during testing
+        test_output = ae.run_net(input_, 1) # we do not have dropout during testing
 
         with tf.name_scope("eval"):
           test_loss = loss_reconstruction(output, target_)
           
         # Pre - Train the whole network jointly
         print("\n\n")
-        print("| Tr. Sequence | Error    |   Epoch  |")
-        print("|--------------|----------|----------|")
+        print("| Training steps| Error    |   Epoch  |")
+        print("|---------------|----------|----------|")
 
-        for step in xrange(FLAGS.pretraining_epochs * batch_size):
+        for step in xrange(FLAGS.pretraining_epochs * data.train.num_examples):
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
           loss_summary, loss_value, curr_input  = sess.run([train_op, loss, input_],
                                               feed_dict=feed_dict)
 
-          train_error_ = np.sqrt(loss_value/batch_size)
+          train_error_ = loss_value/batch_size
           
-          if(step%100 == 0):
+          if(step%300 == 0):
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
-            tr_summary_writer.add_summary(train_summary, step)
+            #tr_summary_writer.add_summary(train_summary, step)
               
             # Print results of screen
             output = "| {0:>12} | {1:8.4f} | Epoch {2}  |"\
-                       .format(step,  train_error_, step//batch_size + 1)
+                       .format(step,  train_error_, step//data.train.num_examples + 1)
 
             print(output)
 
             #Evaluate on the test sequences
             error_sum=0
-            num_test_batches = int(data.test.num_examples / batch_size)
+            num_test_batches = int(data.test.num_examples/batch_size)
             for test_batch in range(num_test_batches):
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
               curr_err, curr_input = sess.run([test_loss, input_], feed_dict=feed_dict)
-              error_sum+= np.sqrt(curr_err/batch_size)
-            test_error_ = error_sum//num_test_batches
+              error_sum+= curr_err
+            test_error_ = error_sum/(num_test_batches*batch_size)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
-            test_summary_writer.add_summary(test_sum, step)
+            #test_summary_writer.add_summary(test_sum, step)
 
     print("Final train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
-
-    # Create a saver
-    saver = tf.train.Saver(np.concatenate(variables_to_save, axis=0).tolist())
-
+    
     # Save a model
-    saver.save(sess,FLAGS.params_file) #TODO : do we need it?
+    
+    #saver.save(sess,FLAGS.params_file) #TODO : do we need it?
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    # write_bvh_file(ae, FLAGS.data_dir+'/01/01_01.bvh', max_val, min_val, mean_pose,  FLAGS.data_dir+'/boxing_reconstr.bvh')
+    write_bvh_file(ae, FLAGS.data_dir+'/14/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/boxing_reconstr.bvh')
   
   return ae
-    
-
-def write_middle_layer(ae, input_seq_file_name, output_seq_file_name, name):
-  """ Writing a middle layer into the matlab file
-
-  Args:
-    ae:                     ae, middle layer of which we want to save
-    input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
-    output_seq_file_name:   name of the file in which we will write a middle layer of the AE
-    name:                   name of the  'trial' for these sequence
-  Returns:
-    nothing
-  """
-  print('Extracting middle layer for a test sequence...')
+      
   
-  with ae.session.graph.as_default():
-    
-    
-    sess = ae.session
-    
-    # get input sequnce
-    currSequence = read_file(input_seq_file_name)
-
-    # define tensors
-    input_ = tf.placeholder(dtype=tf.float32,
-                                  shape=(None, FLAGS.DoF),
-                                  name='ae_input_pl')
-
-    middle_op = ae.pretrain_net(FLAGS.middle_layer, input_ , 1)
-    
-    # for each snippet in a sequence
-    # pass through the network untill the middle layer
-    middle = sess.run(middle_op, feed_dict={input_: currSequence})
-    
-    # save it into a file
-
-    sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})    
-  
-def write_bvh_file(ae, input_seq_file_name, max_val, min_val, mean_pose, output_bvh_file_name):
+def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
    print('Take a test sequence from the file',input_seq_file_name)
    print('And write an output into the file ' + output_bvh_file_name + '...')
    with ae.session.graph.as_default():
@@ -372,13 +369,15 @@ def write_bvh_file(ae, input_seq_file_name, max_val, min_val, mean_pose, output_
                                   shape=(None, FLAGS.DoF),
                                   name='ae_input_pl')
 
-    AE_op = ae.pretrain_net(ae.num_hidden_layers+1, input_ , 1)
+    AE_op = ae.run_net(input_ , 1)
         
     # get input sequnce
     inputSequence = read_file(input_seq_file_name)
 
-    # Scale it to be between 0 and 1 """
-    inputSequence -= min_val
+    # Substract the mean pose
+    inputSequence = inputSequence - mean_pose[np.newaxis,:]
+
+    # Scale it to be between -1 and 1 """
     eps=1e-8
     inputSequence *= 1.0 / (max_val + eps)
 
@@ -387,7 +386,7 @@ def write_bvh_file(ae, input_seq_file_name, max_val, min_val, mean_pose, output_
 
     # Convert it back from [0,1] to original values
     eps=1e-8
-    reconstructed = (outputSequence * (max_val  + eps)) + min_val
+    reconstructed = (outputSequence * (max_val  + eps))
     
     # Add the mean pose back
     reconstructed = reconstructed + mean_pose[np.newaxis,:]
@@ -396,6 +395,5 @@ def write_bvh_file(ae, input_seq_file_name, max_val, min_val, mean_pose, output_
 
 if __name__ == '__main__':
   ae = main_unsupervised()
-  # get middle layers for visualization
-  # write_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') 
-  # main_supervised(ae)
+
+  write_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing')
