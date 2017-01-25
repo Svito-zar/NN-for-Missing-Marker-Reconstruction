@@ -122,6 +122,7 @@ class DataSetPreTraining(object):
 
     return self._poses[start:end]
 
+
 def read_file(fileName):
     """
     Reads a file from CMU MoCap dataset in BVH format
@@ -162,7 +163,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   train_dir = FLAGS.data_dir
   input_data = np.array([])
   numb_of_folders=FLAGS.amount_of_subfolders
-  
+
   # go over all subfolders with the data putting them all into one list
   for folder_numb in range(1,numb_of_folders+1,1):
     if(folder_numb==4):
@@ -200,8 +201,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   eps=1e-8
   input_data *= 1.0 / (max_val + eps)
 
-  #print(input_data[0])
-    
+  # TODO: It should not be hardcoded
   TEST_SIZE = 9000
   VALIDATION_SIZE = 1000
 
@@ -221,6 +221,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   print (str(train_data.shape[0]) + ' poses will be used for training')
   
   return data_sets, max_val, mean_pose
+
 
 
 ''' Add Gaussian random vectors with zero mean and given variance '''

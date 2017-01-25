@@ -345,7 +345,7 @@ def main_unsupervised(restore):
           if(step%300 == 0):
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
-            #tr_summary_writer.add_summary(train_summary, step)
+            tr_summary_writer.add_summary(train_summary, step)
               
             # Print results of screen
             output = "| {0:>12} | {1:8.4f} | Epoch {2}  |"\
@@ -362,7 +362,7 @@ def main_unsupervised(restore):
               error_sum+= curr_err
             test_error_ = error_sum/(num_test_batches*batch_size)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
-            #test_summary_writer.add_summary(test_sum, step)
+            test_summary_writer.add_summary(test_sum, step)
 
     print("Final train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
     

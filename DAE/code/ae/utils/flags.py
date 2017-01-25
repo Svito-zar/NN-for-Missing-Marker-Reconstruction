@@ -91,7 +91,6 @@ flags.DEFINE_integer('test_sequences_numb', 5,
 flags.DEFINE_integer('batch_size', 500,
                      'Size of the mini batch')
 
-
 flags.DEFINE_integer('pretraining_epochs', 3, #60 originaly
                      "Number of training epochs for pretraining layers")
 
@@ -106,7 +105,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 18, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
