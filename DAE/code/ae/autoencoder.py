@@ -193,6 +193,8 @@ class AutoEncoder(object):
     sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})  
 
 
+
+
 def loss_reconstruction(output, target):
   """ Reconstruction error
 
@@ -209,7 +211,7 @@ def loss_reconstruction(output, target):
       l2diff =  tf.nn.l2_loss(tf.sub(net_output_tf, target_tf))
       return l2diff
 
-def main_unsupervised():
+def main_unsupervised(restore):
   """ Unsupervised pretraining of the autoencoder
 
   Returns:
@@ -264,6 +266,15 @@ def main_unsupervised():
         optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
         train_op = optimizer.minimize(loss, global_step=global_step, name='Adam_optimizer')
 
+        # Get variables for saving
+        variables_to_save = ae.get_variables()
+
+        for variable in variables_to_save:
+          tf.add_to_collection('vars', variable)
+
+        # Create a saver
+        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
+
         # Initialize variables
         sess.run(tf.global_variables_initializer())
 
@@ -277,11 +288,22 @@ def main_unsupervised():
         #num_train_seq = data.train.num_sequences
         batch_size = FLAGS.batch_size
 
-        # Get variables for saving
-        variables_to_save = ae.get_variables()
+        # Saver for the model
+        #saver.save(sess, 'FLAGS.model_dir'+'/flat_ae', global_step=global_step)
+        # `save` method will call `export_meta_graph` implicitly.
 
-         # Create a saver
-        saver = tf.train.Saver(variables_to_save) #(np.concatenate(variables_to_save, axis=0).tolist())
+        #restore model:
+        if(restore):
+          new_saver = tf.train.import_meta_graph('my-model.meta')
+          new_saver.restore(sess, tf.train.latest_checkpoint('./'))
+          all_vars = tf.get_collection('vars')
+          # DEBUG
+          #for v in all_vars:
+          #    v_ = sess.run(v)
+          #    print(v_)
+
+
+        #(np.concatenate(variables_to_save, axis=0).tolist())
 
         # Restore variables
         #print('I am restoring saved variables...')
@@ -353,7 +375,7 @@ def main_unsupervised():
     print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    write_bvh_file(ae, FLAGS.data_dir+'/14/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/boxing_reconstr.bvh')
+    write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/boxing_reconstr.bvh')
   
   return ae
       
@@ -394,6 +416,28 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
     np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ') 
 
 if __name__ == '__main__':
-  ae = main_unsupervised()
+  restore = False
+  ae = main_unsupervised(restore)
+  #ae.write_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') 
 
-  write_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing')
+  """with tf.Graph().as_default() as g:
+    sess = tf.Session()
+    
+    # Read AE characteristings from flags file
+    encode1 = [FLAGS.chest_neurons, FLAGS.head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
+    encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
+    encode3 = int(FLAGS.representation_size)
+    decode_shape = [getattr(FLAGS, "decode_size_{0}".format(j + 1))
+                          for j in xrange(FLAGS.num_decoding_layers)]
+    decode = [FLAGS.representation_size] + decode_shape + [FLAGS.DoF]
+
+    
+   # decode.append(FLAGS.DoF) # that must be the last layer now. TODO: it will change
+
+    #print('First layer structure :', encode1)
+    # Create an AE
+    Hae = HierarchicalDeepAE(FLAGS.DoF, encode1, encode2, encode3, decode , sess)
+  # get middle layers for visualization
+    Hae.write_middle_layer( FLAGS.data_dir+'/14/short.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') 
+
+ # write_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') """

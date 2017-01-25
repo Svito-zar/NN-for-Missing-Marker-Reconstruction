@@ -162,6 +162,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   train_dir = FLAGS.data_dir
   input_data = np.array([])
   numb_of_folders=FLAGS.amount_of_subfolders
+  
   # go over all subfolders with the data putting them all into one list
   for folder_numb in range(1,numb_of_folders+1,1):
     if(folder_numb==4):
@@ -194,12 +195,9 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   mean_pose = input_data.mean(axis=0)
   input_data = input_data - mean_pose [np.newaxis,:]
 
-  # Scales all values in the input_data to be between 0 and 1 """
-  input_data = input_data.copy()
-  min_val = input_data.min()
-  input_data -= min_val
-  eps=1e-8
+  # Scales all values in the input_data to be between -1 and 1
   max_val = input_data.max()
+  eps=1e-8
   input_data *= 1.0 / (max_val + eps)
 
   #print(input_data[0])
@@ -222,7 +220,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   print (str(validation_data.shape[0]) + ' poses will be used for validation')
   print (str(train_data.shape[0]) + ' poses will be used for training')
   
-  return data_sets, min_val, max_val, mean_pose
+  return data_sets, max_val, mean_pose
 
 
 ''' Add Gaussian random vectors with zero mean and given variance '''
