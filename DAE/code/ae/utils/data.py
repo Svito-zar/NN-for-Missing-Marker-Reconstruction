@@ -211,7 +211,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   VALIDATION_SIZE = 1000
 
   # Shuffle the data
-  perm = np.arange(amount_of_strings)
+  perm = np.arange(new_size)
   np.random.shuffle(perm)
   input_data =  input_data[perm]
 
