@@ -201,8 +201,11 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   eps=1e-8
   input_data *= 1.0 / (max_val + eps)
 
+  # Get a standart deviation
+  sigma = np.std(input_data, axis=0)
+
   # TODO: It should not be hardcoded
-  TEST_SIZE = 9000
+  TEST_SIZE = 5000
   VALIDATION_SIZE = 1000
 
   train_data = input_data[TEST_SIZE:,:]
@@ -216,18 +219,24 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   data_sets.validation = DataSetPreTraining(validation_data)
   data_sets.test = DataSetPreTraining(test_data)
 
-  print (str(test_data.shape[0]) + ' poses will be used for testing')
-  print (str(validation_data.shape[0]) + ' poses will be used for validation')
-  print (str(train_data.shape[0]) + ' poses will be used for training')
+  # Assign variance
+  data_sets.train.sigma = sigma
+
+  #print (str(test_data.shape[0]) + ' poses will be used for testing')
+  #print (str(validation_data.shape[0]) + ' poses will be used for validation')
+  #print (str(train_data.shape[0]) + ' poses will be used for training')
   
   return data_sets, max_val, mean_pose
 
 
 
 ''' Add Gaussian random vectors with zero mean and given variance '''
-def _add_noise(x, variance):
+def _add_noise(x, variance_multiplier, sigma):
   x_cp = np.copy(x)
-  x_cp = x_cp + np.random.normal(0, variance,(x_cp.shape[0],
+  #print(x.shape)
+  #print(np.multiply(sigma, variance_multiplier))
+  eps=1e-15
+  x_cp = x_cp + np.random.normal(0, np.multiply(sigma, variance_multiplier) + eps,(x_cp.shape[0],
                                   x_cp.shape[1]))
   return x_cp
 
@@ -236,7 +245,7 @@ def fill_feed_dict_ae(data_set, input_pl, target_pl, keep_prob, variance, dropou
     input_feed = data_set.next_batch(FLAGS.batch_size)
     # allow no noise during testing
     if(add_noise):
-      input_feed = _add_noise(input_feed, variance)
+      input_feed = _add_noise(input_feed, variance, data_set.sigma) # pass both a coefficient and a sigma of the data
     feed_dict = {
         input_pl: input_feed,
         target_pl: input_feed,
