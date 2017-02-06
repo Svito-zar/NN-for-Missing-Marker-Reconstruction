@@ -180,7 +180,6 @@ def loss_reconstruction(output, target):
       # Euclidean distance between net_output_tf,target_tf
       l2diff =  tf.nn.l2_loss(net_output_tf- target_tf)
       return l2diff
-    #tf.reduce_mean(l2diff,reduction_indices=0)
 
 def main_unsupervised():
   """ Unsupervised pretraining of the autoencoder
@@ -300,8 +299,8 @@ def main_unsupervised():
             num_test_seq = data.test.num_sequences
             for test_seq in range(num_test_seq):
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
-              curr_err, curr_input = sess.run([test_loss, input_], feed_dict=feed_dict)
-              error_sum+= curr_err //  curr_input.shape[0]
+              curr_err = sess.run(test_loss, feed_dict=feed_dict)
+              error_sum+= curr_err
             test_error_ = error_sum/num_test_seq
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, step)
