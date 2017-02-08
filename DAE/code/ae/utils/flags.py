@@ -20,10 +20,8 @@ flags.DEFINE_integer('DoF', 132, 'Dimensionality of the single frame') # will be
 """ 							HIRERARCHICAL AE 			"""
 
 # First encoding layer characteristics
-flags.DEFINE_integer('chest_neurons', 6,
+flags.DEFINE_integer('chest_head_neurons', 20,
                      'Number of neurons for representation of the chest in hidden layer 1.')
-flags.DEFINE_integer('head_neurons', 6,
-                     'Number of neurons for representation of the head in hidden layer 1.')
 flags.DEFINE_integer('right_arm_neurons', 20,
                      'Number of neurons for representation of the right arm in hidden layer 1.')
 flags.DEFINE_integer('left_arm_neurons', 20,
@@ -32,28 +30,27 @@ flags.DEFINE_integer('right_leg_neurons', 10,
                      'Number of neurons for representation of the right leg in hidden layer 1.')
 flags.DEFINE_integer('left_leg_neurons', 10,
                      'Number of neurons for representation of the left leg in hidden layer 1.')
+
 # Second encoding layer characteristics
+flags.DEFINE_integer('spine_and_r_arm_neurons', 15,
+                     'Number of neurons for representation of the trunk combined with right arm in hidden layer 2.')
+flags.DEFINE_integer('spine_and_l_arm_neurons', 15,
+                     'Number of neurons for representation of the trunk combined with left arm hidden layer 2.')
+flags.DEFINE_integer('spine_and_r_leg_neurons', 15,
+                     'Number of neurons for representation of the trunk combined with right leg in hidden layer 2.')
+flags.DEFINE_integer('spine_and_l_leg_neurons', 15,
+                     'Number of neurons for representation of the trunk combined with left leg in hidden layer 2.')
+
+# Third encoding layer characteristics
 flags.DEFINE_integer('upper_body_neurons', 10,
-                     'Number of neurons for representation of the upper body in hidden layer 2.')
+                     'Number of neurons for representation of the upper body in hidden layer 3.')
 flags.DEFINE_integer('lower_body_neurons', 5,
-                     'Number of neurons for representation of the lower body in hidden layer 2.')
+                     'Number of neurons for representation of the lower body in hidden layer 3.')
 
 # Third encoding layer characteristics
 flags.DEFINE_integer('representation_size', 16,
-                     'Number of neurons for representation of the whole body in hidden layer 3.')
+                     'Number of neurons for representation of the whole body in hidden layer 4.')
 
-
-flags.DEFINE_integer("num_decoding_layers", 3, "Number of decoding layers") # should be 2
-
-# Decoding layers characteristics
-flags.DEFINE_integer('decode_size_1', 48,
-                     'Number of neurons in the first decoding layer.')
-flags.DEFINE_integer('decode_size_2', 96,
-                     'Number of neurons in the second decoding layer.')
-flags.DEFINE_integer('decode_size_3', 48,
-                     'Number of neurons in the third decoding layer.')
-flags.DEFINE_integer('decode_size_4', 132,
-                     'Number of neurons in the third decoding layer.')
 
 
 """ 							FLAT AE 			"""
@@ -81,7 +78,7 @@ flags.DEFINE_float('pretraining_learning_rate', 0.0004,
                    'Initial learning rate.')
 
 # It is a question wheather adding noise 
-flags.DEFINE_float('variance_of_noise', 0.8, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.2, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
@@ -108,7 +105,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 35, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',

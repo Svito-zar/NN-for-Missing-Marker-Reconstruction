@@ -12,8 +12,9 @@ from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
 from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
-from FlatAE import FlatAutoEncoder  # import class for an AE
-
+# import class for both architectures of AE
+from FlatAE import FlatAutoEncoder    
+from HierarchicalAE import HierarchicalAE
 
 
 def loss_reconstruction(output, target):
@@ -45,20 +46,17 @@ def main_unsupervised(restore):
 
     # Here is a switch for different AE
     
-    """ 
-    # Read AE characteristings from flags file
-    encode1 = [FLAGS.chest_neurons, FLAGS.head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
-    encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
-    encode3 = int(FLAGS.representation_size)
-    decode_shape = [getattr(FLAGS, "decode_size_{0}".format(j + 1))
-                          for j in xrange(FLAGS.num_decoding_layers)]
-    decode = [FLAGS.representation_size] + decode_shape + [FLAGS.DoF]
+    
+    # Read Hierarchical AE characteristings from flags file
+    encode1 = [FLAGS.chest_head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
+    encode2 = [FLAGS.spine_and_r_arm_neurons, FLAGS.spine_and_l_arm_neurons, FLAGS.spine_and_r_leg_neurons, FLAGS.spine_and_l_leg_neurons]
+    encode3 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
+    encode4 = int(FLAGS.representation_size)
 
     # Create an autoencoder
-    Hae = HierarchicalDeepAE(FLAGS.DoF, encode1, encode2, encode3, decode , sess)
+    ae = HierarchicalAE(FLAGS.DoF, encode1, encode2, encode3, encode4, sess)
+    
     """
-
-
     # Get variables from flags
     num_hidden = FLAGS.num_hidden_layers
     ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
@@ -70,8 +68,8 @@ def main_unsupervised(restore):
     ae  = FlatAutoEncoder(ae_shape, sess)
 
     print('Flat AE was created, with a ', ae_shape)
-
-    #"""
+    """
+    
     # After this point the code is the same for both architectures of AE
     
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
@@ -84,17 +82,16 @@ def main_unsupervised(restore):
 
     # Create a variable to track the global step.
     global_step = tf.Variable(0, name='global_step', trainable=False)
-    
-    # Create a trainer
-    amount_of_layers = len(ae_shape)-1 # amount of layers
+
+    batch_size = FLAGS.batch_size
     
     with tf.variable_scope("pretrain"):
 
         input_ = tf.placeholder(dtype=tf.float32,
-                                shape=(FLAGS.batch_size, ae_shape[0]),
+                                shape=(FLAGS.batch_size, FLAGS.DoF),
                                 name='ae_input_pl')
         target_ = tf.placeholder(dtype=tf.float32,
-                                 shape=(FLAGS.batch_size, ae_shape[0]),
+                                 shape=(FLAGS.batch_size, FLAGS.DoF),
                                  name='ae_target_pl')
         
         output = ae.run_net(input_, dropout)
@@ -107,11 +104,11 @@ def main_unsupervised(restore):
         optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
         train_op = optimizer.minimize(loss, global_step=global_step, name='Adam_optimizer')
 
-        # Get variables for saving
+        """# Get variables for saving
         variables_to_save = ae.get_variables()
 
         for variable in variables_to_save:
-          tf.add_to_collection('vars', variable)
+          tf.add_to_collection('vars', variable)"""
 
         # Create a saver
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
@@ -120,6 +117,7 @@ def main_unsupervised(restore):
         sess.run(tf.global_variables_initializer())
 
         # Get the data
+        print("\n")
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
 
         print('Variations: ', data.train.sigma)
@@ -129,7 +127,6 @@ def main_unsupervised(restore):
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
         
         #num_train_seq = data.train.num_sequences
-        batch_size = FLAGS.batch_size
 
         #restore model:
         if(restore):
@@ -164,8 +161,16 @@ def main_unsupervised(restore):
         print("| Training steps| Error    |   Epoch  |")
         print("|---------------|----------|----------|")
 
+        #indices = [ [ [elem, index] for index in range(6) ] for elem in range(ae.__curr_batch_size)]
+
         for step in xrange(FLAGS.pretraining_epochs * num_batches):
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
+
+          #DEBUG
+          #curr_ind = sess.run([train_op, loss, input_],
+                                          #    feed_dict=feed_dict)
+          #print(indices)
+          #print(last_output.shape)
 
           loss_summary, loss_value, curr_input  = sess.run([train_op, loss, input_],
                                               feed_dict=feed_dict)
@@ -198,7 +203,7 @@ def main_unsupervised(restore):
           if(step%5000==0 & step>1000):
             
             # Print an output for a specific sequence into a file
-            write_bvh_file(ae, FLAGS.data_dir+'/26/26_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstraction.bvh')
+            write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
             
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -218,7 +223,9 @@ def main_unsupervised(restore):
     print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    write_bvh_file(ae, FLAGS.data_dir+'/26/26_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr.bvh')
+    write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_test.bvh')
+    # Print an output for a specific sequence into a file
+    write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
   
   return ae
       
@@ -238,6 +245,9 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
         
     # get input sequnce
     inputSequence = read_file(input_seq_file_name)
+
+    # Define the size of current input sequence
+    ae.__curr_batch_size = len(inputSequence)
 
     # Substract the mean pose
     inputSequence = inputSequence - mean_pose[np.newaxis,:]
@@ -261,6 +271,7 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
 if __name__ == '__main__':
   restore = False
   ae = main_unsupervised(restore)
+  ae.write_middle_layer(FLAGS.data_dir+'/25/25_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
      
   # get middle layers for visualization
  # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') """
