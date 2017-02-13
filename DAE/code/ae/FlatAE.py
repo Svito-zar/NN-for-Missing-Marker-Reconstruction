@@ -35,6 +35,8 @@ class FlatAutoEncoder(object):
     self.__shape = shape  # [input_dim,hidden1_dim,...,hidden_n_dim,output_dim]
     self.__num_hidden_layers = len(self.__shape) - 2
 
+    self.__curr_batch_size = FLAGS.batch_size
+
     self.__variables = {}
     self.__sess = sess
 
@@ -170,24 +172,26 @@ class FlatAutoEncoder(object):
     """
     print('\nExtracting middle layer for a test sequence...')
     
-    sess = self.__sess
+    with self.__sess.graph.as_default():
+       
+      sess = self.__sess
       
-    # get input sequnce
-    currSequence = read_file(input_seq_file_name)
+      # get input sequnce
+      currSequence = read_file(input_seq_file_name)
 
-    # define tensors
-    input_ = tf.placeholder(dtype=tf.float32,
-                                  shape=(None, FLAGS.DoF),
-                                  name='ae_input_pl')
-    # Define the size of current input sequence
-    self.__curr_batch_size = sess.run(tf.shape(input_ )[0], feed_dict={input_ : currSequence})
+      # define tensors
+      input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(None, FLAGS.DoF),
+                                    name='ae_input_pl')
+      # Define the size of current input sequence
+      self.__curr_batch_size = sess.run(tf.shape(input_ )[0], feed_dict={input_ : currSequence})
 
-    # Define on an operator
-    middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout
-      
-    # for each snippet in a sequence
-    # pass through the network untill the middle layer
-    middle = sess.run(middle_op, feed_dict={input_: currSequence})
-      
-    # save it into a file
-    sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})  
+      # Define on an operator
+      middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout
+        
+      # for each snippet in a sequence
+      # pass through the network untill the middle layer
+      middle = sess.run(middle_op, feed_dict={input_: currSequence})
+        
+      # save it into a file
+      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})  

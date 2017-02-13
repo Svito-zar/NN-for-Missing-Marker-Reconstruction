@@ -55,13 +55,13 @@ flags.DEFINE_integer('representation_size', 16,
 
 """ 							FLAT AE 			"""
 
-flags.DEFINE_integer("num_hidden_layers", 5, "Number of hidden layers") # should be 2
+flags.DEFINE_integer("num_hidden_layers", 3, "Number of hidden layers") # should be 2
 
-flags.DEFINE_integer('hidden1_units', 150,
+flags.DEFINE_integer('hidden1_units', 96,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 60,
+flags.DEFINE_integer('hidden2_units', 48,
                      'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 30,
+flags.DEFINE_integer('hidden3_units', 96,
                      'Number of units in hidden layer 3.')
 flags.DEFINE_integer('hidden4_units', 60,
                      'Number of units in hidden layer 4.') # 2000 originaly
@@ -78,7 +78,7 @@ flags.DEFINE_float('pretraining_learning_rate', 0.0004,
                    'Initial learning rate.')
 
 # It is a question wheather adding noise 
-flags.DEFINE_float('variance_of_noise', 0.2, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.1, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
@@ -88,7 +88,7 @@ flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 flags.DEFINE_integer('test_sequences_numb', 5,
                      'Amount of the testing sequences.')
 
-flags.DEFINE_integer('batch_size', 500,
+flags.DEFINE_integer('batch_size', 512,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs', 50, #60 originaly
@@ -105,7 +105,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 35, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',

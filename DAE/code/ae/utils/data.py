@@ -17,11 +17,6 @@ sys.path.append('/home/taras/Documents/Code/BVH/parser') # address of the BVH pa
 from reader import MyReader
 
 
-def _read32(bytestream):
-  dt = np.dtype(np.uint32).newbyteorder('>')
-  return np.frombuffer(bytestream.read(4), dtype=dt)
-
-
 def dense_to_one_hot(labels_dense, num_classes=10):
   """Convert class labels from scalars to one-hot vectors."""
   num_labels = labels_dense.shape[0]
@@ -193,15 +188,24 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   new_size = amount_of_frames - (amount_of_frames%FLAGS.batch_size)
   input_data = input_data[:new_size]
 
+  
   # Do mean normalization : substract mean pose
   print('Normalizing the data ...')
   mean_pose = input_data.mean(axis=0)
   input_data = input_data - mean_pose [np.newaxis,:]
 
   # Scales all values in the input_data to be between -1 and 1
-  max_val = input_data.max()
-  eps=1e-8
-  input_data *= 1.0 / (max_val + eps)
+  max_val = np.amax(np.absolute(input_data), axis=0)
+  eps=1e-15
+  input_data =np.divide(input_data,max_val[np.newaxis,:]+eps)
+
+  # Chech the data range
+  max_ = input_data.max()
+  min_ = input_data.min()
+
+  #DEBUG
+  print("MAximum value in the normalized dataset : " + str(max_))
+  print("Minimum value in the normalized dataset : " + str(min_))
 
   # Get a standart deviation
   sigma = np.std(input_data, axis=0)
@@ -239,8 +243,6 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 ''' Add Gaussian random vectors with zero mean and given variance '''
 def _add_noise(x, variance_multiplier, sigma):
   x_cp = np.copy(x)
-  #print(x.shape)
-  #print(np.multiply(sigma, variance_multiplier))
   eps=1e-15
   x_cp = x_cp + np.random.normal(0, np.multiply(sigma, variance_multiplier) + eps,(x_cp.shape[0],
                                   x_cp.shape[1]))

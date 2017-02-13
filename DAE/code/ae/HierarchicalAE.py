@@ -323,15 +323,15 @@ class HierarchicalAE(object):
           second_hidden_layer.append(self._activate(hierarchical_hidden_layer[ind], self["w_"+name_of_part], self["b_"+name_of_part]))
 
         # Combine the outputs
-        upper_body_in = tf.concat(1, [second_hidden_layer[0], second_hidden_layer[1]])
-        lower_body_in = tf.concat(1, [second_hidden_layer[2], second_hidden_layer[3]])
+        upper_body_in = tf.concat(1, [second_hidden_layer[0], second_hidden_layer[1]],name = 'upper_body_in')
+        lower_body_in = tf.concat(1, [second_hidden_layer[2], second_hidden_layer[3]],name = 'lower_body_in')
 
         ################    Thirsd layer encoding    #################
         upper_body_out = self._activate(upper_body_in, self["w_upper_body"], self["b_upper_body"])
         lower_body_out = self._activate(lower_body_in, self["w_lower_body"], self["b_lower_body"])
 
         # Concatanate
-        whole_body_in = tf.concat(1, [body_in, upper_body_out, lower_body_out])
+        whole_body_in = tf.concat(1, [body_in, upper_body_out, lower_body_out],name = 'whole_body_in')
 
         ################    4th layer encoding    ##################
         representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
@@ -352,9 +352,9 @@ class HierarchicalAE(object):
         indices = [ [ [elem, index] for index in range(self._body_channels+FLAGS.upper_body_neurons, 6+FLAGS.upper_body_neurons+FLAGS.lower_body_neurons,1) ] for elem in range(self.__curr_batch_size)]
         lower_body_decode = tf.gather_nd(whole_body_decode, indices, name=None) # changes the whole body"""
 
-        body_decode = tf.slice(whole_body_decode, [0,0], [self.__curr_batch_size,self._body_channels])
-        upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__curr_batch_size,FLAGS.upper_body_neurons])
-        lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__curr_batch_size,FLAGS.lower_body_neurons])
+        body_decode = tf.slice(whole_body_decode, [0,0], [self.__curr_batch_size,self._body_channels], name = 'body_decode')
+        upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__curr_batch_size,FLAGS.upper_body_neurons], name = 'upper_body_slice')
+        lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__curr_batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
 
         ################    2nd layer decoding    ##################
         upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
@@ -379,7 +379,7 @@ class HierarchicalAE(object):
                               tf.slice(spine_and_l_leg_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]]) )"""
 
         # Slice it back to the body parts
-        spine_slice = tf.slice(upper_body_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]])
+        spine_slice = tf.slice(upper_body_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]], name = 'spine_decode_slice')
         r_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]],[self.__curr_batch_size, self.__encode1[1]])
         l_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]+self.__encode1[1]],[self.__curr_batch_size, self.__encode1[2]])
         r_leg_slice = tf.slice(lower_body_decode,[0,0],[self.__curr_batch_size, self.__encode1[3]])
