@@ -7,6 +7,6 @@ rm -r /home/taras/tmp/MoCap/summaries
 python code/ae/train.py
 
 # Start the tensorboard with the new data
-#tensorboard --logdir=/home/taras/tmp/MoCap/summaries/ --port 6006
+tensorboard --logdir=/home/taras/tmp/MoCap/summaries/ --port 6006
 
 

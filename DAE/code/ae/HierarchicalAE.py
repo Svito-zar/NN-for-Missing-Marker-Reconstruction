@@ -27,7 +27,7 @@ class HierarchicalAE(object):
   # The following two array must have the same size and ordering, they will be use to make a proper connection for the input layer
   _body_part_names = ["chest_head", "r_arm", "l_arm", "r_leg", "l_leg"]
   _input_shapes = [18, 45, 45, 12, 12]      # we don't use the information about the whole body for each body part, but add it directly to the represantation layer
-  _body_channels = 6                        # DoF affecting the whole body
+  _body_channels = 3                        # DoF affecting the whole body
   _output_shapes = [18, 42, 42, 12, 12]     # Do not duplicate
 
   def __init__(self, DoF, encode1, encode2, encode3, encode4, sess):
@@ -113,7 +113,7 @@ class HierarchicalAE(object):
         # matrices
         name_w = "w_" + name_of_part
         w_shape = (self._input_shapes[bp_id], self.__encode1[bp_id])
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                      name=name_w,
@@ -136,7 +136,7 @@ class HierarchicalAE(object):
         # matrices
         name_w = "w_" + name_of_part
         w_shape = (self.__encode1[bp_id+1] +self.__encode1[0] , self.__encode2[bp_id])
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                      name=name_w,
@@ -159,7 +159,7 @@ class HierarchicalAE(object):
         name_w = "w_" + name_of_part
         
         w_shape = (sizes[ind] , self.__encode3[ind])
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                        name=name_w,
@@ -178,7 +178,7 @@ class HierarchicalAE(object):
       name_w = "w_whole_body"
         
       w_shape = (self.__encode3[0]+self.__encode3[1] + self._body_channels, int(self.__encode4))
-      a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+      a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
       w_init = tf.random_uniform(w_shape, -1 * a, a)
       self[name_w] = tf.Variable(w_init,
                                       name=name_w,
@@ -197,7 +197,7 @@ class HierarchicalAE(object):
       # First decoding layer weights and biases
       name_w = "w_whole_body_decode"  
       w_shape = (int(self.__encode4), self.__encode3[0]+self.__encode3[1] + self._body_channels)
-      a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+      a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
       w_init = tf.random_uniform(w_shape, -1 * a, a)
       self[name_w] = tf.Variable(w_init,
                                       name=name_w,
@@ -211,14 +211,20 @@ class HierarchicalAE(object):
 
       # Second decoding layer weights and biases
       ind = 0
+     
+       #That was wrong! You need to fix this
       upper_body_in_size = self.__encode1[0] + self.__encode1[1] + self.__encode1[2]
       lower_body_in_size = self.__encode1[3] + self.__encode1[4]
+      
+      #upper_body_in_size = self.__encode2[0] + self.__encode2[1]
+      #lower_body_in_size = self.__encode2[2] + self.__encode2[3]
+      
       sizes = [upper_body_in_size, lower_body_in_size]
       for name_of_part in ['upper_body', 'lower_body']:
         name_w = "w_" + name_of_part + "_decode"
         
         w_shape = (self.__encode3[ind], sizes[ind] )
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                        name=name_w,
@@ -237,7 +243,7 @@ class HierarchicalAE(object):
         # matrices
         name_w = "w_" + name_of_part + "_decode"
         w_shape = ( self.__encode1[bp_id], self._output_shapes[bp_id]) # NOTE usage of output_shapes instead of input_shapes
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                      name=name_w,
@@ -280,22 +286,22 @@ class HierarchicalAE(object):
         #Extract the part of the data, which belongs to each body part
         # This part is format specific. And hardcoded!
         # The data for the structure of the MoCap dataset (in BVH format) is in the file BVH_fierarchy in the root folder of my Dropbox folder
-        indices = [ [ [elem, index] for index in range(6) ] for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__curr_batch_size)]
         body_in = tf.gather_nd(last_output, indices, name=None) # changes the whole body
         
-        indices = [ [ [elem, index] for index in range(6,24,1) ] for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__curr_batch_size)]
         chest_head = tf.gather_nd(last_output, indices, name=None) # chest and head
     
-        indices = [ [ [elem, index] for index in range(9,12,1) ] + [ [elem, index] for index in range(24,66,1) ]  for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__curr_batch_size)]
         r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
 
-        indices = [ [ [elem, index] for index in range(9,12,1) ] + [ [elem, index] for index in range(66,108,1) ]  for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__curr_batch_size)]
         l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
 
-        indices = [ [ [elem, index] for index in range(108,120,1) ] for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__curr_batch_size)]
         r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
 
-        indices = [ [ [elem, index] for index in range(120,132,1) ] for elem in range(self.__curr_batch_size)]
+        indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__curr_batch_size)]
         l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
 
         hierarchical_input = [chest_head, r_Arm, l_Arm, r_Leg, l_Leg]
@@ -393,7 +399,7 @@ class HierarchicalAE(object):
         l_leg_decode = self._activate(l_leg_slice, self["w_l_leg_decode"], self["b_l_leg_decode"])
         chest_head_decode = self._activate(spine_slice, self["w_chest_head_decode"], self["b_chest_head_decode"])
 
-        output = tf.concat(1, [body_decode,chest_head_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], name='concat')
+        output = tf.concat(1, [body_decode, chest_head_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], name='concat')
       #print('I passed')
 
       return output

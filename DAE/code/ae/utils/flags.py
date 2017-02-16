@@ -15,20 +15,20 @@ FLAGS = flags.FLAGS
 
 # Autoencoder Architecture Specific Flags
 
-flags.DEFINE_integer('DoF', 132, 'Dimensionality of the single frame') # will be much more
+flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame') # will be much more
 
 """ 							HIRERARCHICAL AE 			"""
 
 # First encoding layer characteristics
-flags.DEFINE_integer('chest_head_neurons', 20,
+flags.DEFINE_integer('chest_head_neurons', 10,
                      'Number of neurons for representation of the chest in hidden layer 1.')
 flags.DEFINE_integer('right_arm_neurons', 20,
                      'Number of neurons for representation of the right arm in hidden layer 1.')
 flags.DEFINE_integer('left_arm_neurons', 20,
                      'Number of neurons for representation of the left arm hidden layer 1.')
-flags.DEFINE_integer('right_leg_neurons', 10,
+flags.DEFINE_integer('right_leg_neurons', 15,
                      'Number of neurons for representation of the right leg in hidden layer 1.')
-flags.DEFINE_integer('left_leg_neurons', 10,
+flags.DEFINE_integer('left_leg_neurons', 15,
                      'Number of neurons for representation of the left leg in hidden layer 1.')
 
 # Second encoding layer characteristics
@@ -55,13 +55,13 @@ flags.DEFINE_integer('representation_size', 16,
 
 """ 							FLAT AE 			"""
 
-flags.DEFINE_integer("num_hidden_layers", 3, "Number of hidden layers") # should be 2
+flags.DEFINE_integer("num_hidden_layers", 5, "Number of hidden layers") # should be 2
 
-flags.DEFINE_integer('hidden1_units', 96,
+flags.DEFINE_integer('hidden1_units', 150,
                      'Number of units in hidden layer 1.') # 2000 originaly
-flags.DEFINE_integer('hidden2_units', 48,
+flags.DEFINE_integer('hidden2_units', 60,
                      'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 96,
+flags.DEFINE_integer('hidden3_units', 30,
                      'Number of units in hidden layer 3.')
 flags.DEFINE_integer('hidden4_units', 60,
                      'Number of units in hidden layer 4.') # 2000 originaly
@@ -74,7 +74,7 @@ flags.DEFINE_integer('hidden5_units', 150,
 """ 							Training characteristics 			"""
 
 # Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
-flags.DEFINE_float('pretraining_learning_rate', 0.0004,
+flags.DEFINE_float('pretraining_learning_rate', 0.05,
                    'Initial learning rate.')
 
 # It is a question wheather adding noise 
@@ -91,7 +91,7 @@ flags.DEFINE_integer('test_sequences_numb', 5,
 flags.DEFINE_integer('batch_size', 512,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 50, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 80, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 2,
@@ -105,7 +105,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 30, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',

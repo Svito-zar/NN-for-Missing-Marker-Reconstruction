@@ -7,13 +7,15 @@ import gzip
 
 import numpy as np
 
+
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 from flags import FLAGS
 import os
 
 import sys # for adding a python module from the folder
-sys.path.append('/home/taras/Documents/Code/BVH/parser') # address of the BVH parser
+sys.path.append('/home/taras/Dropbox/Taras/2017_PhD_at_KTH/Code/Git/DAE-for-Mocap-Representation-Learning/BVH_format/parser')
+#/home/taras/Documents/Code/BVH/parser') # address of the BVH parser
 from reader import MyReader
 
 
@@ -41,8 +43,6 @@ class DataSet(object):
     self._labels = labels
     self._epochs_completed = 0
     self._index_in_epoch = 0
-    self._min = 0 # the smallest value in the dataset
-    self._max = 0 # the biggest values in the dataset
 
   @property
   def poses(self):
@@ -135,7 +135,11 @@ def read_file(fileName):
     reader = MyReader(fileName);
     reader.read();
     sequence = np.array(reader.channels) # use 3d coordinates
-    return sequence
+
+    # Ignore global rotation
+    shorter_sequence  = np.concatenate((sequence[:,0:3], sequence[:,6:]), axis=1)
+      
+    return shorter_sequence
 
 def read_unlabeled_data(train_dir, amount_of_subfolders):
   """
@@ -188,15 +192,15 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   new_size = amount_of_frames - (amount_of_frames%FLAGS.batch_size)
   input_data = input_data[:new_size]
 
-  
+
   # Do mean normalization : substract mean pose
   print('Normalizing the data ...')
   mean_pose = input_data.mean(axis=0)
   input_data = input_data - mean_pose [np.newaxis,:]
 
   # Scales all values in the input_data to be between -1 and 1
-  max_val = np.amax(np.absolute(input_data), axis=0)
   eps=1e-15
+  max_val = np.amax(np.absolute(input_data), axis=0)
   input_data =np.divide(input_data,max_val[np.newaxis,:]+eps)
 
   # Chech the data range
@@ -206,9 +210,6 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   #DEBUG
   print("MAximum value in the normalized dataset : " + str(max_))
   print("Minimum value in the normalized dataset : " + str(min_))
-
-  # Get a standart deviation
-  sigma = np.std(input_data, axis=0)
 
   # TODO: It should not be hardcoded
   TEST_SIZE = 5000
@@ -230,7 +231,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   data_sets.test = DataSetPreTraining(test_data)
 
   # Assign variance
-  data_sets.train.sigma = sigma
+  data_sets.train.sigma = np.std(input_data, axis=0)
 
   #print (str(test_data.shape[0]) + ' poses will be used for testing')
   #print (str(validation_data.shape[0]) + ' poses will be used for validation')
@@ -244,8 +245,9 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 def _add_noise(x, variance_multiplier, sigma):
   x_cp = np.copy(x)
   eps=1e-15
-  x_cp = x_cp + np.random.normal(0, np.multiply(sigma, variance_multiplier) + eps,(x_cp.shape[0],
+  noise = np.random.normal(0, np.multiply(sigma, variance_multiplier) + eps,(x_cp.shape[0],
                                   x_cp.shape[1]))
+  x_cp = x_cp + noise
   return x_cp
 
 
