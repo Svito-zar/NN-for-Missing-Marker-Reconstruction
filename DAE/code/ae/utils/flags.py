@@ -16,6 +16,8 @@ FLAGS = flags.FLAGS
 # Autoencoder Architecture Specific Flags
 
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame') # will be much more
+flags.DEFINE_boolean('Hierarchical', True,
+                     'Whether AE is hierarchical')
 
 """ 							HIRERARCHICAL AE 			"""
 
@@ -26,11 +28,11 @@ flags.DEFINE_integer('right_arm_neurons', 20,
                      'Number of neurons for representation of the right arm in hidden layer 1.')
 flags.DEFINE_integer('left_arm_neurons', 20,
                      'Number of neurons for representation of the left arm hidden layer 1.')
-flags.DEFINE_integer('right_leg_neurons', 15,
+flags.DEFINE_integer('right_leg_neurons', 10,
                      'Number of neurons for representation of the right leg in hidden layer 1.')
-flags.DEFINE_integer('left_leg_neurons', 15,
+flags.DEFINE_integer('left_leg_neurons', 10,
                      'Number of neurons for representation of the left leg in hidden layer 1.')
-
+ 
 # Second encoding layer characteristics
 flags.DEFINE_integer('spine_and_r_arm_neurons', 15,
                      'Number of neurons for representation of the trunk combined with right arm in hidden layer 2.')
@@ -40,13 +42,13 @@ flags.DEFINE_integer('spine_and_r_leg_neurons', 15,
                      'Number of neurons for representation of the trunk combined with right leg in hidden layer 2.')
 flags.DEFINE_integer('spine_and_l_leg_neurons', 15,
                      'Number of neurons for representation of the trunk combined with left leg in hidden layer 2.')
-
+ 
 # Third encoding layer characteristics
 flags.DEFINE_integer('upper_body_neurons', 10,
                      'Number of neurons for representation of the upper body in hidden layer 3.')
 flags.DEFINE_integer('lower_body_neurons', 5,
                      'Number of neurons for representation of the lower body in hidden layer 3.')
-
+ 
 # Third encoding layer characteristics
 flags.DEFINE_integer('representation_size', 16,
                      'Number of neurons for representation of the whole body in hidden layer 4.')
@@ -74,11 +76,11 @@ flags.DEFINE_integer('hidden5_units', 150,
 """ 							Training characteristics 			"""
 
 # Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
-flags.DEFINE_float('pretraining_learning_rate', 0.05,
+flags.DEFINE_float('pretraining_learning_rate', 0.01,
                    'Initial learning rate.')
 
 # It is a question wheather adding noise 
-flags.DEFINE_float('variance_of_noise', 0.1, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.2, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
@@ -91,7 +93,7 @@ flags.DEFINE_integer('test_sequences_numb', 5,
 flags.DEFINE_integer('batch_size', 512,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 80, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 120, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 2,
