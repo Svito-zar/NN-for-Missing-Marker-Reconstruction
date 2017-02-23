@@ -30,29 +30,25 @@ class HierarchicalAE(object):
   _body_channels = 3                        # DoF affecting the whole body
   _output_shapes = [18, 42, 42, 12, 12]     # Do not duplicate
 
-  def __init__(self, DoF, encode1, encode2, encode3, encode4, sess):
+  def __init__(self, DoF, encode1, encode2, encode3, sess):
     """Autoencoder initializer
 
     Args:
       DoF:        number of Degrees Of Freedom in the input data
       encode1 :   list of integers, specifiyng number of neurons for each body part in the first hidden layer,
                   n1_head_chest, n1_rArm, n1_lArm, n1_rLeg, n1_lLeg
-      encode2 :   list of integers, specifiyng number of neurons for each body part in the second hidden layer,
-                  n2_spine_rArm, n2_spine_lArm, n2_spine_rLeg, n2_spine_lLeg
-      encode3 :   list of integers, specifiyng number of neurons for the upper body and the lower body
+      encode2 :   list of integers, specifiyng number of neurons for the upper body and the lower body
                   n3_upper, n3_lower
-      encode4 :   integer specifying the size of the 3rd layer, containing information about the whole body
+      encode3 :   integer specifying the size of the 3rd layer, containing information about the whole body
                   it will be a middle layer for representation
-      decode  :   list of integers for decoding 
+      decode  :   is simetric to encoding
       sess: tensorflow session object to use
     """
     self.__DoF = DoF
     self.__encode1 = encode1
     self.__encode2 = encode2
     self.__encode3 = encode3
-    self.__encode4 = encode4
 
-    #self.__num_hidden_layers =  len(self.__decode) + 3                #  3 layers of encoding
 
     self.__curr_batch_size = FLAGS.batch_size                         # The size of the current batch AE is working with
 
@@ -107,7 +103,8 @@ class HierarchicalAE(object):
 
       ######################            Encoding          #############################
       
-      # First layer weights and biases
+      # *****************          First layer weights and biases**********
+      
       for bp_id in range(len(self.__encode1)): # bp_id - body part ID
         name_of_part = self._body_part_names[bp_id]
         # matrices
@@ -130,73 +127,59 @@ class HierarchicalAE(object):
 
       print('\n')
       
-      # Second layer weights and biases
-      for bp_id in range(len(self.__encode2)): # bp_id - body part ID
-        name_of_part = "spine_"+self._body_part_names[bp_id+1] # skip head and chest
-        # matrices
-        name_w = "w_" + name_of_part
-        w_shape = (self.__encode1[bp_id+1] +self.__encode1[0] , self.__encode2[bp_id])
-        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
-        w_init = tf.random_uniform(w_shape, -1 * a, a)
-        self[name_w] = tf.Variable(w_init,
-                                     name=name_w,
-                                     trainable=True)
-        # biases
-        name_b = "b_" + name_of_part
-        b_shape = (self.__encode2[bp_id])
-        b_init = tf.zeros(b_shape)
-        self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
-        #DEBUG
-        print('Next body part name is : ', name_of_part, 'It has a shape : ', w_shape )
-      print('\n')
+      # *******************      Second layer weights and biases   ************
+      name_w = "w_upper_body"
+      w_shape = (self.__encode1[0] + self.__encode1[1] + self.__encode1[2], self.__encode2[0]) # spine and both arms -> upper body
+      a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+      w_init = tf.random_uniform(w_shape, -1 * a, a)
+      self[name_w] = tf.Variable(w_init,
+                                  name=name_w,
+                                  trainable=True)
+      name_b = "b_upper_body"
+      b_shape = (self.__encode2[0])
+      b_init = tf.zeros(b_shape)
+      self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
+      #DEBUG
+      print('Next body part name is : ', name_w , 'It has a shape : ', w_shape )
       
-      # Third layer weights and biases
-      ind = 0
-      upper_body_in_size = self.__encode2[0] + self.__encode2[1]
-      lower_body_in_size = self.__encode2[2] + self.__encode2[3]
-      sizes = [upper_body_in_size, lower_body_in_size]
-      for name_of_part in ['upper_body', 'lower_body']:
-        name_w = "w_" + name_of_part
-        
-        w_shape = (sizes[ind] , self.__encode3[ind])
-        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
-        w_init = tf.random_uniform(w_shape, -1 * a, a)
-        self[name_w] = tf.Variable(w_init,
-                                       name=name_w,
-                                       trainable=True)
-        #DEBUG
-        print('Next body part name is : ', name_of_part, 'It has a shape : ', w_shape )
-        
-        name_b = "b_" + name_of_part
-        b_shape = (self.__encode3[ind])
-        b_init = tf.zeros(b_shape)
-        self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
+      name_w = "w_lower_body"  
+      w_shape = (self.__encode1[3] + self.__encode1[4], self.__encode2[1]) # both legs -> lower body
+      a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+      w_init = tf.random_uniform(w_shape, -1 * a, a)
+      self[name_w] = tf.Variable(w_init,
+                                  name=name_w,
+                                  trainable=True)
+      name_b = "b_lower_body"
+      b_shape = (self.__encode2[1])
+      b_init = tf.zeros(b_shape)
+      self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
+      #DEBUG
+      print('Next body part name is : ', name_w , 'It has a shape : ', w_shape )
 
-        ind+= 1
-
-      # Forth layer weight and bias
+      #      ****************  Third layer weight and bias   ***************
+      
       name_w = "w_whole_body"
         
-      w_shape = (self.__encode3[0]+self.__encode3[1] + self._body_channels, int(self.__encode4))
+      w_shape = (self.__encode2[0]+self.__encode2[1] + self._body_channels, int(self.__encode3))
       a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
       w_init = tf.random_uniform(w_shape, -1 * a, a)
       self[name_w] = tf.Variable(w_init,
                                       name=name_w,
                                       trainable=True)
+      name_b = "b_whole_body"
+      b_shape = (self.__encode3)
+      b_init = tf.zeros(b_shape)
+      self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
+      
       #DEBUG
       print('\nMatrix before the whole body representation has a shape : ', w_shape )
         
-      # biase
-      name_b = "b_whole_body"
-      b_shape = (self.__encode4)
-      b_init = tf.zeros(b_shape)
-      self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
       ######################            Decoding          #############################
       
-      # First decoding layer weights and biases
+      #  ************      First decoding layer weights and biases   **********
       name_w = "w_whole_body_decode"  
-      w_shape = (int(self.__encode4), self.__encode3[0]+self.__encode3[1] + self._body_channels)
+      w_shape = (int(self.__encode3), self.__encode2[0]+self.__encode2[1] + self._body_channels)
       a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
       w_init = tf.random_uniform(w_shape, -1 * a, a)
       self[name_w] = tf.Variable(w_init,
@@ -204,26 +187,22 @@ class HierarchicalAE(object):
                                       trainable=True)
       # biase
       name_b = "b_whole_body_decode"
-      b_shape = (self.__encode3[0]+self.__encode3[1] + self._body_channels)
+      b_shape = (self.__encode2[0]+self.__encode2[1] + self._body_channels)
       b_init = tf.zeros(b_shape)
       self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
 
-      # Second decoding layer weights and biases
-      ind = 0
+      # *************       Second decoding layer weights and biases     *************
      
-       #That was wrong! You need to fix this
       upper_body_in_size = self.__encode1[0] + self.__encode1[1] + self.__encode1[2]
       lower_body_in_size = self.__encode1[3] + self.__encode1[4]
       
-      #upper_body_in_size = self.__encode2[0] + self.__encode2[1]
-      #lower_body_in_size = self.__encode2[2] + self.__encode2[3]
-      
       sizes = [upper_body_in_size, lower_body_in_size]
+      ind = 0
       for name_of_part in ['upper_body', 'lower_body']:
         name_w = "w_" + name_of_part + "_decode"
         
-        w_shape = (self.__encode3[ind], sizes[ind] )
+        w_shape = (self.__encode2[ind], sizes[ind] )
         a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
@@ -321,40 +300,25 @@ class HierarchicalAE(object):
               name_of_body_part = self._body_part_names[bp_id]
               first_hidden_layer.append(self._activate(hierarchical_input[bp_id], self["w_"+name_of_body_part], self["b_"+name_of_body_part]))
 
-          with tf.variable_scope("Spine_concat"):
+          with tf.variable_scope("Upper_lower_concat"):
             
             # Combine the outputs
-            spine_and_r_arm = tf.concat(1, [first_hidden_layer[0], first_hidden_layer[1]])
-            spine_and_l_arm = tf.concat(1, [first_hidden_layer[0], first_hidden_layer[2]])
-            spine_and_r_leg = tf.concat(1, [first_hidden_layer[0], first_hidden_layer[3]])
-            spine_and_l_leg = tf.concat(1, [first_hidden_layer[0], first_hidden_layer[4]])
-            hierarchical_hidden_layer = [spine_and_r_arm, spine_and_l_arm, spine_and_r_leg, spine_and_l_leg]
-
-          ################    Second layer encoding    #################
-          with tf.variable_scope("Second_encoding"): 
-            second_hidden_layer = []
-            for ind in range(len(self.__encode2)): # ind - index
-              name_of_part = "spine_"+self._body_part_names[ind+1] # skip head and chest
-              #print("Encode " + name_of_part)
-              second_hidden_layer.append(self._activate(hierarchical_hidden_layer[ind], self["w_"+name_of_part], self["b_"+name_of_part]))
-
-          with tf.variable_scope("Upper_lower_combinations"):
-            # Combine the outputs
-            upper_body_in = tf.concat(1, [second_hidden_layer[0], second_hidden_layer[1]],name = 'upper_body_in')
-            lower_body_in = tf.concat(1, [second_hidden_layer[2], second_hidden_layer[3]],name = 'lower_body_in')
+            upper_body_in = tf.concat([first_hidden_layer[0], first_hidden_layer[1], first_hidden_layer[2]], 1)
+            lower_body_in = tf.concat([first_hidden_layer[3], first_hidden_layer[4]], 1)
 
           
+          ################    Second layer encoding    #################          
           with tf.variable_scope("Upper_lower_encoding"):
+            
             ################    Thirsd layer encoding    #################
             upper_body_out = self._activate(upper_body_in, self["w_upper_body"], self["b_upper_body"])
             lower_body_out = self._activate(lower_body_in, self["w_lower_body"], self["b_lower_body"])
-
           
           with tf.variable_scope("Whole_body_concat"):
             # Concatanate
-            whole_body_in = tf.concat(1, [body_in, upper_body_out, lower_body_out],name = 'whole_body_in')
+            whole_body_in = tf.concat([body_in, upper_body_out, lower_body_out],1,name = 'whole_body_in')
 
-          ################    4th layer encoding    ##################
+          ################    Third layer encoding    ##################
 
           with tf.variable_scope("Last_hiddeb_layer"):
             representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
@@ -380,23 +344,6 @@ class HierarchicalAE(object):
             upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
             lower_body_decode = self._activate(lower_body_slice, self["w_lower_body_decode"], self["b_lower_body_decode"])
 
-          """ # Slice it back
-          spine_and_r_arm_slice = tf.slice(upper_body_decode, [0,0], [self.__curr_batch_size, self.__encode2[0]])
-          spine_and_l_arm_slice = tf.slice(upper_body_decode, [0,self.__encode2[0]], [self.__curr_batch_size, self.__encode2[1]])
-          spine_and_r_leg_slice = tf.slice(upper_body_decode, [0,self.__encode2[0] + self.__encode2[1]], [self.__curr_batch_size, self.__encode2[2]])
-          spine_and_l_leg_slice = tf.slice(upper_body_decode, [0,self.__encode2[0] + self.__encode2[1]+ self.__encode2[2]], [self.__curr_batch_size, self.__encode2[3]])
-
-          ################    3rd layer decoding    ##################
-          spine_and_r_arm_decode = self._activate(spine_and_r_arm_slice, self["w_spine_r_arm_decode"], self["b_spine_r_arm_decode"])
-          spine_and_l_arm_decode = self._activate(spine_and_l_arm_slice, self["w_spine_l_arm_decode"], self["b_spine_l_arm_decode"])
-          spine_and_r_leg_decode = self._activate(spine_and_r_leg_slice, self["w_spine_r_leg_decode"], self["b_spine_r_leg_decode"])
-          spine_and_l_leg_decode = self._activate(spine_and_l_leg_slice, self["w_spine_l_leg_decode"], self["b_spine_l_leg_decode"])
-
-          # Average slices from all the layers, since spine was recombined in all of them
-          spine_slice = 0,25 * (tf.slice(spine_and_r_arm_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]]) +
-                                tf.slice(spine_and_l_arm_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]]) +
-                                tf.slice(spine_and_r_leg_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]]) +
-                                tf.slice(spine_and_l_leg_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]]) )"""
 
           # Slice it back to the body parts
           with tf.variable_scope("Slice_into_body_parts"):
@@ -416,7 +363,7 @@ class HierarchicalAE(object):
             spine_decode = self._activate(spine_slice, self["w_spine_decode"], self["b_spine_decode"])
 
           with tf.variable_scope("combine"):
-            output = tf.concat(1, [body_decode, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], name='concat')
+            output = tf.concat([body_decode, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], 1, name='concat')
 
       return output
 
@@ -466,7 +413,7 @@ class HierarchicalAE(object):
               spine_decode = self._activate(spine_repres, self["w_spine_decode"], self["b_spine_decode"])
 
             with tf.variable_scope("concatanate"):
-              output = tf.concat(1, [body_in, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], name='concat')
+              output = tf.concat([body_in, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode],1, name='concat')
               
       return output
 

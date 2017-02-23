@@ -30,10 +30,10 @@ def loss_reconstruction(output, target):
       net_output_tf = tf.convert_to_tensor(output, name='input')
       target_tf = tf.convert_to_tensor(target, name='target')
       # Euclidean distance between net_output_tf,target_tf
-      l2diff =  tf.nn.l2_loss(tf.sub(net_output_tf, target_tf))
+      l2diff =  tf.nn.l2_loss(tf.subtract(net_output_tf, target_tf))
       return l2diff
 
-def main_unsupervised(restore):
+def main_unsupervised(restore, pretrain):
   """ Unsupervised pretraining of the autoencoder
 
   Returns:
@@ -49,12 +49,11 @@ def main_unsupervised(restore):
     
       # Read Hierarchical AE characteristings from flags file
       encode1 = [FLAGS.chest_head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
-      encode2 = [FLAGS.spine_and_r_arm_neurons, FLAGS.spine_and_l_arm_neurons, FLAGS.spine_and_r_leg_neurons, FLAGS.spine_and_l_leg_neurons]
-      encode3 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
-      encode4 = int(FLAGS.representation_size)
+      encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
+      encode3 = int(FLAGS.representation_size)
 
       # Create an autoencoder
-      ae = HierarchicalAE(FLAGS.DoF, encode1, encode2, encode3, encode4, sess)
+      ae = HierarchicalAE(FLAGS.DoF, encode1, encode2, encode3, sess)
     
     else:
       # Get variables from flags
@@ -72,7 +71,7 @@ def main_unsupervised(restore):
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
     dropout = FLAGS.dropout # (keep probability) value
 
-    learning_rate = FLAGS.pretraining_learning_rate
+    #tr_learning_rate = FLAGS.training_learning_rate
 
     variance = FLAGS.variance_of_noise
 
@@ -82,7 +81,7 @@ def main_unsupervised(restore):
 
     batch_size = FLAGS.batch_size
     
-    with tf.variable_scope("Train"):
+    with tf.variable_scope("Train") as main_scope:
 
         input_ = tf.placeholder(dtype=tf.float32,
                                 shape=(FLAGS.batch_size, FLAGS.DoF),
@@ -93,15 +92,12 @@ def main_unsupervised(restore):
         
         output = ae.run_net(input_, dropout)
 
-        with tf.name_scope("traiing_loss"):
+        with tf.name_scope("training_loss"):
           loss = loss_reconstruction(output, target_)
 
         # create an optimizer
-        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
-        train_op = optimizer.minimize(loss, global_step=global_step, name='Adam_optimizer')
-
-        # Create a saver
-        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
+        optimizer_joint =  tf.train.AdamOptimizer(learning_rate=FLAGS.training_learning_rate) #AdamOptimizer(learning_rate=FLAGS.training_learning_rate) # tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, use_locking=False, name='Adadelta')#
+        joint_train_op = optimizer_joint.minimize(loss, global_step=global_step, name='Joint_optimizer')
 
         # Get the data
         print("\n")
@@ -112,12 +108,6 @@ def main_unsupervised(restore):
         #print('Max values: ', max_val)
 
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
-
-        #restore model:
-        if(restore):
-          new_saver = tf.train.import_meta_graph('my-model.meta')
-          new_saver.restore(sess, tf.train.latest_checkpoint('./models/'))
-          all_vars = tf.get_collection('vars')
 
         # Prepare for making a summary for TensorBoard
 
@@ -135,28 +125,30 @@ def main_unsupervised(restore):
         test_output = ae.run_net(input_, 1) # we do not have dropout during testing
 
         with tf.name_scope("eval"):
-          test_loss = loss_reconstruction(output, target_)
+          test_loss = loss_reconstruction(test_output, target_)
 
         num_batches = int(data.train._num_examples/batch_size)
 
-        print('We train on ', num_batches, ' batches with ', batch_size, ' training examples in each ...')
-
+        
 	#DEBUG
-        if(FLAGS.Hierarchical):
+        if(pretrain and FLAGS.Hierarchical):
           with tf.name_scope("Pretrain"):
+
+            print('We pretrain for', FLAGS.pretraining_epochs, ' epochs...')
+
             
-            output = ae.run_shallow(input_, dropout)
+            shallow_output = ae.run_shallow(input_, dropout)
 
             with tf.name_scope("pretraining_loss"):
-              shallow_loss = loss_reconstruction(output, target_)
+              shallow_loss = loss_reconstruction(shallow_output, target_)
 
             # create an optimizer
-            optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
-            shallow_opt = optimizer.minimize(shallow_loss, global_step=global_step, name='Adam_optimizer')
+            shallow_optimizer =  tf.train.AdamOptimizer(learning_rate=FLAGS.pretraining_learning_rate)
+            shallow_trainer = shallow_optimizer.minimize(shallow_loss, global_step=global_step, name='Shalow_adam_optimizer')
 
             # Initialize variables
             sess.run(tf.global_variables_initializer())
-            
+          
             # Pre - Train only the last and the first layers
             print('\n Pretrain Hierarchical input and output layers \n')
             print("| Training steps| Error    |   Epoch  |")
@@ -167,7 +159,7 @@ def main_unsupervised(restore):
             for step in xrange(FLAGS.pretraining_epochs * num_batches):
               feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
-              loss_summary, loss_value  = sess.run([shallow_opt, loss],
+              loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],
                                                   feed_dict=feed_dict)
               train_error_ = loss_value/batch_size
               
@@ -179,19 +171,32 @@ def main_unsupervised(restore):
 
             #Reset the count for the actual training
             data.train._epochs_completed = 0
+            
         else:
           # Initialize variables
           sess.run(tf.global_variables_initializer())
+
+        tf.get_variable_scope().reuse == True
+        
+        #restore model, if needed
+        if(restore):
+          new_saver = tf.train.import_meta_graph(FLAGS.model_dir+'/HierAe.meta')
+          new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir+'/'))
+
+        # Create a saver
+        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
           
         # Train the whole network jointly
+        print('We train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
+        
         print("\n\n")
         print("| Training steps| Error    |   Epoch  |")
         print("|---------------|----------|----------|")
 
-        for step in xrange(FLAGS.pretraining_epochs * num_batches):
+        for step in xrange(FLAGS.training_epochs * num_batches):
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
-          loss_summary, loss_value  = sess.run([train_op, loss],
+          loss_summary, loss_value  = sess.run([joint_train_op, loss],
                                               feed_dict=feed_dict)
 
           train_error_ = loss_value/batch_size
@@ -226,8 +231,7 @@ def main_unsupervised(restore):
             
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            trial=1
-            saver.save(sess, 'FLAGS.model_dir'+'7'+str(trial), global_step=global_step) # `save` method will call `export_meta_graph` implicitly.
+            #saver.save(sess, 'FLAGS.model_dir', global_step=global_step) # `save` method will call `export_meta_graph` implicitly.
             
 
 
@@ -235,14 +239,14 @@ def main_unsupervised(restore):
     
     # Save a model
     
-    #saver.save(sess,FLAGS.params_file) #TODO : do we need it?
+    #saver.save(sess, FLAGS.model_dir+'/HierAe')
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Flat_test.bvh')
+    write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Flat.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
   
@@ -303,8 +307,11 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
 
 if __name__ == '__main__':
   restore = False
-  ae = main_unsupervised(restore)
+  pretrain = True
+  ae = main_unsupervised(restore, pretrain)
   ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
+
+  
      
   # get middle layers for visualization
  # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') """

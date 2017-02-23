@@ -9,8 +9,6 @@ import tensorflow as tf
 import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
-from utils.eval import loss_supervised, evaluation, do_eval_summary
-from utils.utils import tile_raster_images
 
 
 class FlatAutoEncoder(object):
@@ -87,7 +85,7 @@ class FlatAutoEncoder(object):
         # Train weights
         name_w = self._weights_str.format(i + 1)
         w_shape = (self.__shape[i], self.__shape[i + 1])
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                    name=name_w,

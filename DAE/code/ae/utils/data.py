@@ -19,67 +19,6 @@ sys.path.append('/home/taras/Dropbox/Taras/2017_PhD_at_KTH/Code/Git/DAE-for-Moca
 from reader import MyReader
 
 
-def dense_to_one_hot(labels_dense, num_classes=10):
-  """Convert class labels from scalars to one-hot vectors."""
-  num_labels = labels_dense.shape[0]
-  index_offset = np.arange(num_labels) * num_classes
-  labels_one_hot = np.zeros((num_labels, num_classes))
-  labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
-  return labels_one_hot
-
-
-class DataSet(object):
-
-  def __init__(self, poses, labels, fake_data=False):
-    if fake_data:
-      self._num_examples = 10000
-    else:
-      assert poses.shape[0] == labels.shape[0], (
-          "poses.shape: %s labels.shape: %s" % (poses.shape,
-                                                 labels.shape))
-      self._num_examples = poses.shape[0]
-
-    self._poses = poses
-    self._labels = labels
-    self._epochs_completed = 0
-    self._index_in_epoch = 0
-
-  @property
-  def poses(self):
-    return self._poses
-
-  @property
-  def labels(self):
-    return self._labels
-
-  @property
-  def num_examples(self):
-    return self._num_examples
-
-  @property
-  def epochs_completed(self):
-    return self._epochs_completed
-
-  def next_batch(self, batch_size):
-    """Return the next `batch_size` examples from this data set."""
-    start = self._index_in_epoch
-    self._index_in_epoch += batch_size
-    if self._index_in_epoch > self._num_examples:
-      # Finished epoch
-      self._epochs_completed += 1
-      # Shuffle the data
-      perm = np.arange(self._num_examples)
-      np.random.shuffle(perm)
-      self._poses = self._poses[perm]
-      self._labels = self._labels[perm]
-      # Start next epoch
-      start = 0
-      self._index_in_epoch = batch_size
-      assert batch_size <= self._num_examples
-    end = self._index_in_epoch
-    return self._poses[start:end], self._labels[start:end]
-
-
 class DataSetPreTraining(object):
 
   def __init__(self, poses):
