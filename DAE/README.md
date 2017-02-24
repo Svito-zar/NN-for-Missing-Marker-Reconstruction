@@ -4,7 +4,13 @@ The goal of this project is to learn a mapping from the human posture to the rob
 
 First we need to learn a good represation of the human motion. We will do it by Deep Autoencoder.
 
-I am going to try different architectures of AutoEncoder, as well as, recurrency. They will be in different branches.
+
+```
+## Data preparation
+
+1. Download CMU Mocap dataset in BVH format from https://sites.google.com/a/cgspeed.com/cgspeed/motion-capture/daz-friendly-release
+2. Set the address to this data in the code/ae/utils/flag.py as data_dir
+```
 
 ```
 ##Run
