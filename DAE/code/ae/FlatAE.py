@@ -9,8 +9,6 @@ import tensorflow as tf
 import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
-from utils.eval import loss_supervised, evaluation, do_eval_summary
-from utils.utils import tile_raster_images
 
 
 class FlatAutoEncoder(object):
@@ -35,7 +33,8 @@ class FlatAutoEncoder(object):
     self.__shape = shape  # [input_dim,hidden1_dim,...,hidden_n_dim,output_dim]
     self.__num_hidden_layers = len(self.__shape) - 2
 
-    self.__curr_batch_size = FLAGS.batch_size
+    self.__sequence_length = FLAGS.chunk_length
+    self.__batch_size = FLAGS.batch_size
 
     self.__variables = {}
     self.__sess = sess
@@ -45,10 +44,18 @@ class FlatAutoEncoder(object):
   @property
   def shape(self):
     return self.__shape
-
+  
   @property
   def num_hidden_layers(self):
     return self.__num_hidden_layers
+
+  @property
+  def sequence_length(self):
+    return self.__sequence_length
+
+  @property
+  def batch_size(self):
+    return self.__batch_size
 
   @property
   def session(self):
@@ -87,7 +94,7 @@ class FlatAutoEncoder(object):
         # Train weights
         name_w = self._weights_str.format(i + 1)
         w_shape = (self.__shape[i], self.__shape[i + 1])
-        a = tf.mul(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+        a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
         w_init = tf.random_uniform(w_shape, -1 * a, a)
         self[name_w] = tf.Variable(w_init,
                                    name=name_w,
@@ -131,13 +138,13 @@ class FlatAutoEncoder(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
-  def run_net(self, input_pl, dropout, just_middle = False):
+  def process_sequences(self, input_seq_pl, dropout, just_middle = False):
       """Get the output of the autoencoder
 
       Args:
-        input_pl:     tf placeholder for ae input data
-        dropout:      how much of the input neurons will be activated, value in [0,1]
-        just_middle : will indicate if we want to extract only the middle layer of the network
+        input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+        dropout:          how much of the input neurons will be activated, value in [0,1]
+        just_middle :     will indicate if we want to extract only the middle layer of the network
       Returns:
         Tensor of output
       """
@@ -147,18 +154,45 @@ class FlatAutoEncoder(object):
       else:
         numb_layers = FLAGS.middle_layer
       
-      #First - Apply Dropout
-      last_output = tf.nn.dropout(input_pl, dropout)
+      # First - Apply Dropout
+      the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
-      # Then pass through the network
-      for i in xrange(numb_layers):
+      #output = np.empty([self.sequence_length, self.batch_size, self.shape[0]])
+
+      # Take batches for every time step and run them through the network
+      # Stack all their outputs
+      stacked_outputs = tf.stack([self.single_run(the_whole_sequences[:,time_st,:], just_middle) for time_st in range(self.sequence_length)])
+
+      # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+
+      output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+
+      #print('The final result has a shape:', output.shape)
+      
+      return output
+
+      
+  def single_run(self, input_pl, just_middle = False):
+      """Get the output of the autoencoder for a single batch
+
+      Args:
+        input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
+        just_middle : will indicate if we want to extract only the middle layer of the network
+      Returns:
+        Tensor of output
+      """
+
+      last_output = input_pl
+      
+      # Pass through the network
+      for i in xrange(self.num_hidden_layers+1):
         w = self._w(i + 1)
         b = self._b(i + 1)
 
         last_output = self._activate(last_output, w, b)
 
       return last_output
-
+    
   def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
     """ Writing a middle layer into the matlab file
 

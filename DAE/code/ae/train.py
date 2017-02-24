@@ -10,7 +10,6 @@ import tensorflow as tf
 import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
-from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
 # import class for both architectures of AE
 from FlatAE import FlatAutoEncoder    
@@ -27,13 +26,13 @@ def loss_reconstruction(output, target):
     Scalar tensor of mean eucledean distance
   """
   with tf.name_scope("reconstruction_loss"):
-      net_output_tf = tf.convert_to_tensor(output, name='input')
-      target_tf = tf.convert_to_tensor(target, name='target')
+      #net_output_tf = tf.convert_to_tensor(output, name='input')
+      #target_tf = tf.convert_to_tensor(target, name='target')
       # Euclidean distance between net_output_tf,target_tf
-      l2diff =  tf.nn.l2_loss(tf.sub(net_output_tf, target_tf))
+      l2diff =  tf.nn.l2_loss(tf.subtract(output, target))
       return l2diff
 
-def main_unsupervised(restore):
+def main_unsupervised(restore, pretrain):
   """ Unsupervised pretraining of the autoencoder
 
   Returns:
@@ -81,19 +80,20 @@ def main_unsupervised(restore):
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     batch_size = FLAGS.batch_size
+    chunk_length = FLAGS.chunk_length
     
-    with tf.variable_scope("Train"):
+    with tf.variable_scope("Train") as main_scope:
 
         input_ = tf.placeholder(dtype=tf.float32,
-                                shape=(FLAGS.batch_size, FLAGS.DoF),
+                                shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
                                 name='ae_input_pl')
         target_ = tf.placeholder(dtype=tf.float32,
-                                 shape=(FLAGS.batch_size, FLAGS.DoF),
+                                 shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
                                  name='ae_target_pl')
         
-        output = ae.run_net(input_, dropout)
+        output = ae.process_sequences(input_, dropout) # process batch of sequences
 
-        with tf.name_scope("traiing_loss"):
+        with tf.name_scope("training_loss"):
           loss = loss_reconstruction(output, target_)
 
         # create an optimizer
@@ -104,7 +104,6 @@ def main_unsupervised(restore):
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
 
         # Get the data
-        print("\n")
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
 
         #print('Variations: ', data.train.sigma)
@@ -112,12 +111,6 @@ def main_unsupervised(restore):
         #print('Max values: ', max_val)
 
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
-
-        #restore model:
-        if(restore):
-          new_saver = tf.train.import_meta_graph('my-model.meta')
-          new_saver.restore(sess, tf.train.latest_checkpoint('./models/'))
-          all_vars = tf.get_collection('vars')
 
         # Prepare for making a summary for TensorBoard
 
@@ -132,17 +125,19 @@ def main_unsupervised(restore):
         test_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_test')
         test_summary_writer = tf.summary.FileWriter(test_summary_dir)
 
-        test_output = ae.run_net(input_, 1) # we do not have dropout during testing
+        test_output = ae.process_sequences(input_, 1) # we do not have dropout during testing
 
         with tf.name_scope("eval"):
           test_loss = loss_reconstruction(output, target_)
 
-        num_batches = int(data.train._num_examples/batch_size)
+        num_batches = int(data.train._num_chunks/data.train._batch_size)
+        num_test_batches = int(data.test._num_chunks/batch_size)
 
-        print('We train on ', num_batches, ' batches with ', batch_size, ' training examples in each ...')
+        print('We train on ', num_batches, ' batches with ', batch_size, ' sequences of length ' + str(FLAGS.chunk_length) +' in each ...')
+        
 
 	#DEBUG
-        if(FLAGS.Hierarchical):
+        if(pretrain and FLAGS.Hierarchical):
           with tf.name_scope("Pretrain"):
             
             output = ae.run_shallow(input_, dropout)
@@ -156,7 +151,7 @@ def main_unsupervised(restore):
 
             # Initialize variables
             sess.run(tf.global_variables_initializer())
-            
+          
             # Pre - Train only the last and the first layers
             print('\n Pretrain Hierarchical input and output layers \n')
             print("| Training steps| Error    |   Epoch  |")
@@ -167,9 +162,9 @@ def main_unsupervised(restore):
             for step in xrange(FLAGS.pretraining_epochs * num_batches):
               feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
-              loss_summary, loss_value  = sess.run([shallow_opt, loss],
+              loss_summary, loss_value  = sess.run([shallow_opt, shallow_loss],
                                                   feed_dict=feed_dict)
-              train_error_ = loss_value/batch_size
+              train_error_ = loss_value/(batch_size * chunk_length)
               
               if(step%100 == 0):
                 # Print results of screen
@@ -179,9 +174,17 @@ def main_unsupervised(restore):
 
             #Reset the count for the actual training
             data.train._epochs_completed = 0
+            
         else:
           # Initialize variables
           sess.run(tf.global_variables_initializer())
+
+        tf.get_variable_scope().reuse == True
+        
+        #restore model, if needed
+        if(restore):
+          new_saver = tf.train.import_meta_graph(FLAGS.model_dir+'/HierAe.meta')
+          new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir+'/'))
           
         # Train the whole network jointly
         print("\n\n")
@@ -194,7 +197,8 @@ def main_unsupervised(restore):
           loss_summary, loss_value  = sess.run([train_op, loss],
                                               feed_dict=feed_dict)
 
-          train_error_ = loss_value/batch_size
+          train_error_ = loss_value/(batch_size * chunk_length)
+
           
           if(step%100 == 0):
             # Write summary
@@ -209,12 +213,11 @@ def main_unsupervised(restore):
 
             #Evaluate on the test sequences
             error_sum=0
-            num_test_batches = int(data.test.num_examples/batch_size)
             for test_batch in range(num_test_batches):
               feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
               curr_err, curr_input = sess.run([test_loss, input_], feed_dict=feed_dict)
               error_sum+= curr_err
-            test_error_ = error_sum/(num_test_batches*batch_size)
+            test_error_ = error_sum/(num_test_batches*batch_size * chunk_length)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, step)
 
@@ -226,8 +229,7 @@ def main_unsupervised(restore):
             
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            trial=1
-            saver.save(sess, 'FLAGS.model_dir'+'7'+str(trial), global_step=global_step) # `save` method will call `export_meta_graph` implicitly.
+            saver.save(sess, 'FLAGS.model_dir', global_step=global_step) # `save` method will call `export_meta_graph` implicitly.
             
 
 
@@ -235,20 +237,58 @@ def main_unsupervised(restore):
     
     # Save a model
     
-    #saver.save(sess,FLAGS.params_file) #TODO : do we need it?
+    saver.save(sess, FLAGS.model_dir+'/HierAe')
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Flat_test.bvh')
+    #write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
   
   return ae
       
+
+
+
+  # Scales all values in the input_data to be between -1 and 1
+  eps=1e-15
+  max_val = np.amax(np.absolute(input_data), axis=(0,1))
+  input_data =np.divide(input_data,max_val[np.newaxis,np.newaxis,:]+eps)
+
+  # Chech the data range
+  max_ = input_data.max()
+  min_ = input_data.min()
+
+  #DEBUG
+  print("MAximum value in the normalized dataset : " + str(max_))
+  print("Minimum value in the normalized dataset : " + str(min_))
+
+  TEST_SIZE = FLAGS.test_sequences
+  VALIDATION_SIZE = FLAGS.validation_sequences
+
+  # Shuffle the data
+  perm = np.arange(amount_of_strings)
+  np.random.shuffle(perm)
+  input_data =  input_data[perm]
+
+  train_data = input_data[TEST_SIZE:,:,:]
+
+  test_data = input_data[:TEST_SIZE,:,:]
+
+  validation_data = train_data[:VALIDATION_SIZE]
+
+  data_sets.train = DataSetPreTraining(train_data, FLAGS.batch_size)
+  data_sets.validation = DataSetPreTraining(validation_data, FLAGS.batch_size)
+  data_sets.test = DataSetPreTraining(test_data, FLAGS.batch_size)
+
+  # Assign variance
+  data_sets.train.sigma = np.std(input_data, axis=(0,1))
   
+  return data_sets, max_val, mean_pose
+
 def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
    print('Take a test sequence from the file',input_seq_file_name)
    print('And write an output into the file ' + output_bvh_file_name + '...')
@@ -260,51 +300,51 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
                                   shape=(None, FLAGS.DoF),
                                   name='ae_input_pl')
 
-    AE_op = ae.run_net(input_ , 1)
+    AE_op = ae.process_sequences(input_ , 1)
         
     # get input sequnce
     inputSequence = read_file(input_seq_file_name)
 
-
-    # Define the size of current input sequence
-    ae.__curr_batch_size = len(inputSequence)
-
-    #print("Input: ", inputSequence.shape)
+    # Split it into chunks
+    chunks = np.array([inputSequence [i:i + ae.__sequence_length, :] for i in xrange(0, len(inputSequence )-ae.__sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
 
     # Substract the mean pose
-    inputSequence = inputSequence - mean_pose[np.newaxis,:]
-
-    #print("Mean normalized: ", inputSequence.shape)
+    chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
 
     # Scales all values in the input_data to be between -1 and 1
     eps=1e-15
-    input_data =np.divide(inputSequence,max_val[np.newaxis,:]+eps)
+    chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
 
-    #print("Network input :", input_data.shape)
+    # Batch those chunks
+    batches = np.array([chunks_normalized[i:i + ae.__batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.__batch_size + 1, 1)])
 
-    # pass it through the AE
-    outputSequence = sess.run(AE_op, feed_dict={input_: input_data})
+    # pass all batches through the AE
+    output_batches = np.array( [ sess.run(AE_op, feed_dict={input_: batches[i,:,:]}) for i in range(len(batches)) ] )
 
-    #print("Output: ", outputSequence.shape)
+    # Unroll batches into the sequence
+    output_sequences = output_batches.flatten()
 
     # Convert it back from [-1,1] to original values
-    reconstructed = np.multiply(outputSequence,max_val[np.newaxis,:]+eps)
+    reconstructed = np.multiply(output_sequences,max_val[np.newaxis,np.newaxis,:]+eps)
 
     #print("Muplyply_back : ", reconstructed)
     
     # Add the mean pose back
-    reconstructed = reconstructed + mean_pose[np.newaxis,:]
+    reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
 
     # Iclude rotations as well
-    rotations = [ [0,0,0] for snippet in range(ae.__curr_batch_size)]
-    reconstructed = np.concatenate((reconstructed[:,0:3],rotations,reconstructed[:,3:]), axis=1)
+    rotations = [ [ [0,0,0] for time_st in range(ae.__sequence_length) ] for snippet in range(ae.__batch_size)]
+    reconstructed = np.concatenate((reconstructed[:,:,0:3],rotations,reconstructed[:,:,3:]), axis=1)
     
     np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ') 
 
 if __name__ == '__main__':
   restore = False
-  ae = main_unsupervised(restore)
-  ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
+  pretrain = True
+  ae = main_unsupervised(restore, pretrain)
+  #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
+
+  
      
   # get middle layers for visualization
  # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') """

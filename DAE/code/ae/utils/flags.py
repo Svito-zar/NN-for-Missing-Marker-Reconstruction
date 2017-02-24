@@ -14,10 +14,14 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Autoencoder Architecture Specific Flags
-
-flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame') # will be much more
-flags.DEFINE_boolean('Hierarchical', True,
+flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
+flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
+
+# Flags about the sequence processing
+flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 128,'Stride for spliting sequences into the chunks')
+  
 
 """ 							HIRERARCHICAL AE 			"""
 
@@ -87,10 +91,13 @@ flags.DEFINE_integer('seed', 12345, 'Random seed')
 
 flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('test_sequences_numb', 5,
-                     'Amount of the testing sequences.')
+flags.DEFINE_integer('test_sequences', 50,
+                     'Amount of the testing sequences.Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 512,
+flags.DEFINE_integer('validation_sequences', 50,
+                     'Amount of the validation sequences. Each with the length from flag "chunk_length"')
+
+flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs', 120, #60 originaly
@@ -107,7 +114,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 30, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
