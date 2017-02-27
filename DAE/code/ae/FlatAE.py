@@ -32,6 +32,7 @@ class FlatAutoEncoder(object):
     """
     self.__shape = shape  # [input_dim,hidden1_dim,...,hidden_n_dim,output_dim]
     self.__num_hidden_layers = len(self.__shape) - 2
+    self.__recurrent_layer = FLAGS.recurrent_layer 
 
     self.__sequence_length = FLAGS.chunk_length
     self.__batch_size = FLAGS.batch_size
@@ -105,15 +106,10 @@ class FlatAutoEncoder(object):
         b_init = tf.zeros(b_shape)
         self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
-        if i <= self.__num_hidden_layers:
-
-          # Pretraining output training biases
-          name_b_out = self._biases_str.format(i + 1) + "_out"
-          b_shape = (self.__shape[i],)
-          b_init = tf.zeros(b_shape)
-          self[name_b_out] = tf.Variable(b_init,
-                                         trainable=True,
-                                         name=name_b_out)
+        if i+1 == self.__recurrent_layer:
+          # Create an LSTM cell
+          lstm_size = self.__shape[self.__recurrent_layer]
+          self['lstm'] = tf.contrib.rnn.BasicLSTMCell(lstm_size)
 
   def _w(self, n, suffix=""):
     return self[self._weights_str.format(n) + suffix]
@@ -138,6 +134,7 @@ class FlatAutoEncoder(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
+
   def process_sequences(self, input_seq_pl, dropout, just_middle = False):
       """Get the output of the autoencoder
 
@@ -154,14 +151,16 @@ class FlatAutoEncoder(object):
       else:
         numb_layers = FLAGS.middle_layer
       
+      # Initial state of the LSTM memory.
+      state = initial_state = self['lstm'].zero_state(FLAGS.batch_size, tf.float64)
+      
       # First - Apply Dropout
       the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
-      #output = np.empty([self.sequence_length, self.batch_size, self.shape[0]])
-
       # Take batches for every time step and run them through the network
       # Stack all their outputs
-      stacked_outputs = tf.stack([self.single_run(the_whole_sequences[:,time_st,:], just_middle) for time_st in range(self.sequence_length)])
+      with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
+        stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], state, just_middle) for time_st in range(self.sequence_length) ])
 
       # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 
@@ -172,24 +171,32 @@ class FlatAutoEncoder(object):
       return output
 
       
-  def single_run(self, input_pl, just_middle = False):
+  def single_run(self, input_pl, state, just_middle = False):
       """Get the output of the autoencoder for a single batch
 
       Args:
         input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
+        state:        current state of LSTM memory units
         just_middle : will indicate if we want to extract only the middle layer of the network
       Returns:
         Tensor of output
       """
 
+      #Debug
+      #state_val = self.__sess.run(state,feed_dict={lstm : self['lstm']})
+      
       last_output = input_pl
       
       # Pass through the network
       for i in xrange(self.num_hidden_layers+1):
-        w = self._w(i + 1)
-        b = self._b(i + 1)
+        
+        if(i!=self.__recurrent_layer):
+          w = self._w(i + 1)
+          b = self._b(i + 1)
+          last_output = self._activate(last_output, w, b)
 
-        last_output = self._activate(last_output, w, b)
+        else:
+          last_output, state = self['lstm'](last_output, state)
 
       return last_output
     

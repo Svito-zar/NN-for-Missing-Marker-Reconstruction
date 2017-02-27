@@ -13,14 +13,17 @@ def home_out(path):
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+# Flags about the sequence processing
+flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 128,'Stride for spliting sequences into the chunks')
+
+# FLAGS about recurrency
+flags.DEFINE_integer('recurrent_layer', 5,'At which layer we are going to apply recurrency')
+
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
-
-# Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 128,'Stride for spliting sequences into the chunks')
   
 
 """ 							HIRERARCHICAL AE 			"""
