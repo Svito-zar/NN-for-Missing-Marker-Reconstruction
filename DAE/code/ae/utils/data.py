@@ -34,8 +34,8 @@ class DataSetPreTraining(object):
     return self._sequences
 
   @property
-  def num_sequences(self):
-    return self._num_sequences
+  def num_chunks(self):
+    return self._num_num_chunks
 
   @property
   def epochs_completed(self):
@@ -44,17 +44,18 @@ class DataSetPreTraining(object):
   def next_batch(self):
     """Return the next batch of sequences from this data set."""
     batch_numb = self._index_in_epoch
-    self._index_in_epoch += batch_numb
+    self._index_in_epoch += self._batch_size
+    #print('Starting sequence : ' + str(self._index_in_epoch) + ' out of ' + str( self._num_chunks))
     if self._index_in_epoch > self._num_chunks:
       # Finished epoch
       self._epochs_completed += 1
       # Shuffle the data
-      perm = np.arange(self._num_sequences)
+      perm = np.arange(self._num_chunks)
       np.random.shuffle(perm)
       self._sequences = self._sequences[perm]
       # Start next epoch
       batch_numb = 0
-      self._index_in_epoch = 0
+      self._index_in_epoch = self._batch_size
     return self._sequences[batch_numb:batch_numb+self._batch_size:1, :]
 
 def read_file(fileName):
@@ -88,6 +89,10 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   numb_of_folders=FLAGS.amount_of_subfolders
   chunk_length =FLAGS.chunk_length
   stride = FLAGS.chunking_stride
+
+  if(stride > chunk_length):
+    print('ERROR! \nYou have stride bigger than lentgh of chunks. Please, change those values at flags.py, so that you don\'t ignore the data')
+    exit(0)
   
   # go over all folders with the data
   print('\nReading BVH files from ', FLAGS.amount_of_subfolders, ' folders : ' )
@@ -107,9 +112,9 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
     print(curr_dir)
     for filename in os.listdir(curr_dir ):
       curr_sequence = read_file(curr_dir+'/'+filename)
-      curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length + 1, stride)]) # Split sequence into chunks
+      curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
       # Concatanate curr chunks to all of them
-      input_data = np.vstack([input_data, curr_chunks]) if input_data.size else curr_chunks
+      input_data = np.vstack([input_data, curr_chunks]) if input_data.size else np.array(curr_chunks)
       
       """ print('Sizes of the string : ')
       print(curr_sequence.shape)

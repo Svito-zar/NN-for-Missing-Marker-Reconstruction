@@ -191,7 +191,7 @@ def main_unsupervised(restore, pretrain):
         print("| Training steps| Error    |   Epoch  |")
         print("|---------------|----------|----------|")
 
-        for step in xrange(FLAGS.pretraining_epochs * num_batches):
+        for step in xrange(FLAGS.training_epochs * num_batches):
           feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
 
           loss_summary, loss_value  = sess.run([train_op, loss],

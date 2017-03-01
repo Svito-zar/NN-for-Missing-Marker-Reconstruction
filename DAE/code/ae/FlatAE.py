@@ -90,21 +90,22 @@ class FlatAutoEncoder(object):
     self.__variables[key] = value
 
   def _setup_variables(self):
-    with tf.name_scope("autoencoder_variables"):
+
+    with tf.variable_scope("autoencoder_variables", reuse=None) as scope:
+
       for i in xrange(self.__num_hidden_layers + 1):
         # Train weights
         name_w = self._weights_str.format(i + 1)
         w_shape = (self.__shape[i], self.__shape[i + 1])
         a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
-        w_init = tf.random_uniform(w_shape, -1 * a, a)
-        self[name_w] = tf.Variable(w_init,
-                                   name=name_w,
-                                   trainable=True)
+        #w_init = tf.random_uniform(w_shape, -1 * a, a)
+        self[name_w] = tf.get_variable(name_w,
+                        initializer=tf.random_uniform(w_shape, -1 * a, a))
         # Train biases
         name_b = self._biases_str.format(i + 1)
         b_shape = (self.__shape[i + 1],)
-        b_init = tf.zeros(b_shape)
-        self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
+        #b_init = tf.zeros(b_shape)
+        self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
 
         if i+1 == self.__recurrent_layer:
           # Create an LSTM cell
@@ -150,21 +151,28 @@ class FlatAutoEncoder(object):
         numb_layers = self.__num_hidden_layers+1
       else:
         numb_layers = FLAGS.middle_layer
+
+      with tf.variable_scope("process_sequence", reuse=None) as scope:
       
-      # Initial state of the LSTM memory.
-      state = initial_state = self['lstm'].zero_state(FLAGS.batch_size, tf.float64)
-      
-      # First - Apply Dropout
-      the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
+        # Initial state of the LSTM memory.
+        #state = initial_state = self['lstm'].zero_state(FLAGS.batch_size, tf.float32)
+        state = 0 #TODO: change
+        
+        #tf.get_variable_scope().reuse_variables()
 
-      # Take batches for every time step and run them through the network
-      # Stack all their outputs
-      with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
-        stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], state, just_middle) for time_st in range(self.sequence_length) ])
+        #state = initial_state.eval()
+        
+        # First - Apply Dropout
+        the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
-      # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+        # Take batches for every time step and run them through the network
+        # Stack all their outputs
+        with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
+          stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], state, just_middle) for time_st in range(self.sequence_length) ])
 
-      output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+        # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+
+        output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
 
       #print('The final result has a shape:', output.shape)
       
@@ -184,8 +192,18 @@ class FlatAutoEncoder(object):
 
       #Debug
       #state_val = self.__sess.run(state,feed_dict={lstm : self['lstm']})
-      
+
       last_output = input_pl
+
+      
+      '''total_loss = 0.0
+      for current_batch_of_words in words_in_dataset:
+          numpy_state, current_loss = session.run([final_state, loss],
+              # Initialize the LSTM state from the previous iteration.
+              feed_dict={initial_state: numpy_state, input_pl: current_batch_of_words})
+          total_loss += current_loss'''
+
+      # tf.nn.rnn
       
       # Pass through the network
       for i in xrange(self.num_hidden_layers+1):
@@ -196,7 +214,7 @@ class FlatAutoEncoder(object):
           last_output = self._activate(last_output, w, b)
 
         else:
-          last_output, state = self['lstm'](last_output, state)
+          last_output, state = self['lstm'](last_output,state)
 
       return last_output
     
