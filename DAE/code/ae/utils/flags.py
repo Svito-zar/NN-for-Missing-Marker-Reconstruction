@@ -15,10 +15,10 @@ FLAGS = flags.FLAGS
 
 # Flags about the sequence processing
 flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 128,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 5,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -62,37 +62,44 @@ flags.DEFINE_integer('representation_size', 16,
 
 
 
+
 """ 							FLAT AE 			"""
 
-flags.DEFINE_integer("num_hidden_layers", 5, "Number of hidden layers") # should be 2
+flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
-flags.DEFINE_integer('hidden1_units', 150,
-                     'Number of units in hidden layer 1.') # 2000 originaly
+flags.DEFINE_integer('hidden1_units', 160,
+                     'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2_units', 60,
-                     'Number of units in hidden layer 2.') # 2000 originaly
-flags.DEFINE_integer('hidden3_units', 30,
+                     'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden3_units', 20,
                      'Number of units in hidden layer 3.')
 flags.DEFINE_integer('hidden4_units', 60,
-                     'Number of units in hidden layer 4.') # 2000 originaly
-flags.DEFINE_integer('hidden5_units', 150,
+                     'Number of units in hidden layer 4.') 
+flags.DEFINE_integer('hidden5_units', 160,
                      'Number of units in hidden layer 5.')
-
+flags.DEFINE_integer('hidden6_units', 70,
+                     'Number of units in hidden layer 6.') 
 
 
 
 """ 							Training characteristics 			"""
 
-# Maximal amount of hidden layers is defined by the last value 'pre_layer4_learning_rate' -> 4
-flags.DEFINE_float('pretraining_learning_rate', 0.01,
-                   'Initial learning rate.')
 
-# It is a question wheather adding noise 
-flags.DEFINE_float('variance_of_noise', 0.2, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('pretraining_learning_rate', 0.002,
+                   'Initial learning rate.')
+flags.DEFINE_float('training_learning_rate', 0.001,
+                   'Initial learning rate.')
+flags.DEFINE_float('learning_rate_decay', 0.7,
+                   'Learning rate decaying factor.')
+
+
+flags.DEFINE_float('variance_of_noise', 0.3, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+
 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
 
-flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('test_sequences', 50,
                      'Amount of the testing sequences.Each with the length from flag "chunk_length"')
@@ -100,10 +107,12 @@ flags.DEFINE_integer('test_sequences', 50,
 flags.DEFINE_integer('validation_sequences', 50,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 16,
+flags.DEFINE_integer('batch_size', 12,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 120, #60 originaly
+flags.DEFINE_integer('pretraining_epochs', 1000,
+                     "Number of training epochs for pretraining layers")
+flags.DEFINE_integer('training_epochs', 100, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 2,
@@ -143,3 +152,12 @@ flags.DEFINE_boolean('no_browser', True,
 # Python
 flags.DEFINE_string('python', sys.executable,
                     'Path to python executable')
+
+# ADDITIONAL Flags
+flags.DEFINE_string(
+    "model", "small",
+    "A type of model. Possible options are: small, medium, large.")
+flags.DEFINE_string("save_path", None,
+                    "Model output directory.")
+flags.DEFINE_bool("use_fp16", False,
+                  "Train using 16-bit floats instead of 32bit floats")

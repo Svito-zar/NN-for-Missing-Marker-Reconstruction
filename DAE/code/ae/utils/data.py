@@ -175,6 +175,11 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   # Assign variance
   data_sets.train.sigma = np.std(input_data, axis=(0,1))
+
+  # Check if we have enough data
+  if(data_sets.train._num_chunks < data_sets.train._batch_size):
+      print('ERROR: We have got not enough data! Reduce batch_size or increase amount of subfolder you use.')
+      exit(1)
   
   return data_sets, max_val, mean_pose
 
