@@ -50,19 +50,17 @@ def main_unsupervised(restore, pretrain):
     variance = FLAGS.variance_of_noise
     batch_size = FLAGS.batch_size
     chunk_length = FLAGS.chunk_length
-    lr_decay = FLAGS.learning_rate_decay
 
     # Check if the flags makes sence
     if(batch_size > FLAGS.test_sequences):
       print('ERROR! Cannot have less test sequences than a batch size!')
       exit(1)
 
-    if(learning_rate < 0 or dropout < 0 or variance < 0 or lr_decay <0):
+    if(learning_rate < 0 or dropout < 0 or variance < 0):
       print('ERROR! Have got negative values in the flags!')
       exit(1)
 
-    # create an optimizer
-    optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
+    
 
     # Here is a switch for different AE
     if(FLAGS.Hierarchical):
@@ -88,39 +86,41 @@ def main_unsupervised(restore, pretrain):
       ae  = FlatAutoEncoder(ae_shape, sess)
 
       print('Flat AE was created : ', ae_shape)
-
-
-    # Create a variable to track the global step.
-    global_step = tf.Variable(0, name='global_step', trainable=False)
+    
     
     with tf.variable_scope("Train") as main_scope:
 
-        input_ = tf.placeholder(dtype=tf.float32,
+        #gloabal_step = tf.get_variable("global_step")
+
+        '''input_ = tf.placeholder(dtype=tf.float32,
                                 shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
                                 name='ae_input_pl')
         target_ = tf.placeholder(dtype=tf.float32,
                                  shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
                                  name='ae_target_pl')
+        '''
         
-        output = ae.process_sequences(input_, dropout) # process batch of sequences
+        """output = ae.process_sequences(input_, dropout) # process batch of sequences
 
         with tf.name_scope("training_loss"):
           loss = loss_reconstruction(output, target_)/(batch_size*chunk_length)
 
         ##############        DEFINE  Optimizer and training OPERATOR      ####################################
 
-        lr = tf.Variable(learning_rate, trainable=False) # learning rate
-        tvars = tf.trainable_variables()
-        grads, _ = tf.clip_by_global_norm(tf.gradients(loss, tvars),
-                                      1e12)
-        optimizer = tf.train.GradientDescentOptimizer(lr)
-        train_op = optimizer.apply_gradients(zip(grads, tvars),
-                    global_step=tf.contrib.framework.get_or_create_global_step())
-        new_lr = tf.placeholder(
-            tf.float32, shape=[], name="new_learning_rate")
-        lr_update = tf.assign(lr, new_lr)
+        """
 
-        #train_op = optimizer.minimize(loss, global_step=global_step, name='Adam_optimizer')
+        
+        # get an optimizer
+
+        train_op = ae._train_op
+        """
+        with tf.variable_scope("Optimizer", reuse=None):
+          optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
+          tvars = tf.trainable_variables()
+          grads, _ = tf.clip_by_global_norm(tf.gradients(loss, tvars),
+                                      1e12)
+          train_op = optimizer.apply_gradients(zip(grads, tvars),
+                    global_step=tf.contrib.framework.get_or_create_global_step())"""
 
         # Create a saver
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
@@ -138,10 +138,7 @@ def main_unsupervised(restore, pretrain):
 
         train_error =tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
         test_error =tf.placeholder(dtype=tf.float32, shape=(), name='eval_error')
-
-        lr_summary = tf.summary.scalar("Learning Rate", lr)
-        error_summary = tf.summary.scalar('Train_reconstruction_error', train_error)
-        train_summary_op = tf.summary.merge([error_summary, lr_summary])
+        train_summary_op = tf.summary.scalar('Train_reconstruction_error', train_error)
         test_summary_op =  tf.summary.scalar('Test_reconstr_error',test_error)
 
         tr_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_train')
@@ -149,16 +146,13 @@ def main_unsupervised(restore, pretrain):
         test_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_test')
         test_summary_writer = tf.summary.FileWriter(test_summary_dir)
 
-        test_output = ae.process_sequences(input_, 1) # we do not have dropout during testing
-
-        with tf.name_scope("eval"):
-          test_loss = loss_reconstruction(output, target_)
 
         num_batches = int(data.train._num_chunks/data.train._batch_size)
         num_test_batches = int(data.test._num_chunks/batch_size)
 
-        print('We train on ', num_batches, ' batches with ', batch_size, ' sequences of length ' + str(FLAGS.chunk_length) +' in each ...')
-        
+        print('\nWe train on ', num_batches, ' batches with ', batch_size, ' sequences of length ' + str(FLAGS.chunk_length) +' in each ...')
+
+        test_loss = ae._test_loss
 
 	#DEBUG
         if(pretrain and FLAGS.Hierarchical):
@@ -184,7 +178,7 @@ def main_unsupervised(restore, pretrain):
             pretrain_summary_writer = tf.summary.FileWriter(tr_summary_dir)
             
             for step in xrange(FLAGS.pretraining_epochs * num_batches):
-              feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
+              feed_dict = fill_feed_dict_ae(data.train, self._input_, self._target_, keep_prob, variance, dropout)
 
               loss_summary, loss_value  = sess.run([shallow_opt, shallow_loss],
                                                   feed_dict=feed_dict)
@@ -216,26 +210,12 @@ def main_unsupervised(restore, pretrain):
 
         for epoch in xrange(FLAGS.training_epochs):
           for batches in xrange(num_batches):
-            feed_dict = fill_feed_dict_ae(data.train, input_, target_, keep_prob, variance, dropout)
+            feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
-            loss_summary, loss_value  = sess.run([train_op, loss],
+            loss_summary, loss_value  = sess.run([ae._train_op, ae._loss],
                                                 feed_dict=feed_dict)
             train_error_ = loss_value
-
-
-          # Update learning rate at the end of the epoch
-          #print('Epoch is ', epoch)
-          #print('Learning rate decay is', lr_decay)
-          lr_decay = lr_decay*FLAGS.learning_rate_decay
-
-          #DEBUG
-          #print('Try to assign the value' + str(learning_rate*lr_decay))
-          #print('Have got the value: ' +str(lr))
-          #print()
-          
-          sess.run(lr_update, feed_dict={new_lr: learning_rate*lr_decay})
-            #lr_decay = config.lr_decay ** max(i + 1 - config.max_epoch, 0.0)
-
+                                               
           # Write summary
           train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
           tr_summary_writer.add_summary(train_summary, epoch)
@@ -248,10 +228,10 @@ def main_unsupervised(restore, pretrain):
           #Evaluate on the test sequences
           error_sum=0
           for test_batch in range(num_test_batches):
-             feed_dict = fill_feed_dict_ae(data.test, input_, target_, keep_prob, 0, 1, add_noise=False)
-             curr_err, curr_input = sess.run([test_loss, input_], feed_dict=feed_dict)
-             error_sum+= curr_err
-          test_error_ = error_sum/(num_test_batches*batch_size * chunk_length)
+             feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+             curr_err = sess.run([test_loss], feed_dict=feed_dict)
+             error_sum+= curr_err[0]
+          test_error_ = error_sum/(num_test_batches)
           test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
           test_summary_writer.add_summary(test_sum, epoch)
 
@@ -270,7 +250,7 @@ def main_unsupervised(restore, pretrain):
     
     # Save a model
     
-    saver.save(sess, FLAGS.model_dir+'/HierAe')
+    saver.save(sess, FLAGS.model_dir+'/FlatAe')
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
@@ -331,7 +311,7 @@ def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_
     reconstructed = np.concatenate((reconstructed[:,:,0:3],rotations,reconstructed[:,:,3:]), axis=1)
     
     np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ') 
-
+  
 if __name__ == '__main__':
   restore = False
   pretrain = True

@@ -18,7 +18,7 @@ flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 5,'At which layer we are going to apply recurrency')
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -89,7 +89,7 @@ flags.DEFINE_float('pretraining_learning_rate', 0.002,
                    'Initial learning rate.')
 flags.DEFINE_float('training_learning_rate', 0.001,
                    'Initial learning rate.')
-flags.DEFINE_float('learning_rate_decay', 0.7,
+flags.DEFINE_float('learning_rate_decay', 0.98,
                    'Learning rate decaying factor.')
 
 
@@ -101,21 +101,21 @@ flags.DEFINE_integer('seed', 12345, 'Random seed')
 
 flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('test_sequences', 50,
+flags.DEFINE_integer('test_sequences', 128,
                      'Amount of the testing sequences.Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('validation_sequences', 50,
+flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 12,
+flags.DEFINE_integer('batch_size', 128,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 1000,
+flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 100, #60 originaly
+flags.DEFINE_integer('training_epochs', 2000, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('middle_layer', 2,
+flags.DEFINE_integer('middle_layer', 3,
                      "Which hidden layer is view as a middle layer with the representation")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
@@ -126,7 +126,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 27, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
@@ -139,7 +139,7 @@ flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
 flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
                     'File for saving the parameters values')
 
-flags.DEFINE_string('summary_dir', home_out('summaries'),
+flags.DEFINE_string('summary_dir', home_out('summaries_for_sequences'),
                     'Directory to put the summary data')
 
 flags.DEFINE_string('chkpt_dir', home_out('chkpts'),

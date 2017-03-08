@@ -41,101 +41,151 @@ class FlatAutoEncoder(object):
     self.__variables = {}
     self.__sess = sess
 
-    ##############        SETUP VARIABLES       ###############################################
-    for i in xrange(self.__num_hidden_layers + 1):
-          # Train weights
-          name_w = self._weights_str.format(i + 1)
-          w_shape = (self.__shape[i], self.__shape[i + 1])
-          a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
-          #w_init = tf.random_uniform(w_shape, -1 * a, a)
-          self[name_w] = tf.get_variable(name_w,
-                          initializer=tf.random_uniform(w_shape, -1 * a, a))
-          # Train biases
-          name_b = self._biases_str.format(i + 1)
-          b_shape = (self.__shape[i + 1],)
-          #b_init = tf.zeros(b_shape)
-          self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
+    with tf.variable_scope("AE_Variables"):
 
-    # Define LSTM cell
-    lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer < self.num_hidden_layers+1 else self.num_hidden_layers+1
-    num_LSTM_layers = 1 # TODO: change
-    def lstm_cell():
-        return tf.contrib.rnn.BasicLSTMCell(
-          lstm_size, forget_bias=1.0, state_is_tuple=True)
-    self._cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
-               # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
-            
-    self._initial_state = self._cell.zero_state(self.batch_size, tf.float32)
-
-
-  def single_run(self, input_pl, time_step, state, just_middle = False):
-      """Get the output of the autoencoder for a single batch
-
-      Args:
-        input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
-        state:        current state of LSTM memory units
-        just_middle : will indicate if we want to extract only the middle layer of the network
-      Returns:
-        Tensor of output
-      """
-
-      #Debug
-      #state_val = self.__sess.run(state,feed_dict={lstm : self['lstm']})
-
-      lstm = self._cell
-      last_output = input_pl
-
-      # print(time_step)
-
-      # Pass through the network
-      for i in xrange(self.num_hidden_layers+1):
-            
-        if(i==self.__recurrent_layer):
-          if time_step > 0: tf.get_variable_scope().reuse_variables()
-          (last_output, state) = lstm(last_output, state)
-
-        w = self._w(i + 1)
-        b = self._b(i + 1)
-        last_output = self._activate(last_output, w, b)
-
-      return last_output
-
-  def process_sequences(self, input_seq_pl, dropout, just_middle = False):
+      ##############        SETUP VARIABLES       ###############################################
       
-      """Get the output of the autoencoder
+      # Create a variable to track the global step.
+      global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
+      
+      for i in xrange(self.__num_hidden_layers + 1):
+            # Train weights
+            name_w = self._weights_str.format(i + 1)
+            w_shape = (self.__shape[i], self.__shape[i + 1])
+            a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+            #w_init = tf.random_uniform(w_shape, -1 * a, a)
+            self[name_w] = tf.get_variable(name_w,
+                            initializer=tf.random_uniform(w_shape, -1 * a, a))
+            # Train biases
+            name_b = self._biases_str.format(i + 1)
+            b_shape = (self.__shape[i + 1],)
+            #b_init = tf.zeros(b_shape)
+            self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
 
-      Args:
-        input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
-        dropout:          how much of the input neurons will be activated, value in [0,1]
-        just_middle :     will indicate if we want to extract only the middle layer of the network
-      Returns:
-        Tensor of output
-      """
+      # Define LSTM cell
+      lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer < self.num_hidden_layers+1 else self.num_hidden_layers+1
+      num_LSTM_layers = 1 # TODO: change
+      def lstm_cell():
+          return tf.contrib.rnn.BasicLSTMCell(
+            lstm_size, forget_bias=1.0, state_is_tuple=True)
+      self._cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
+                 # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
+              
+      self._initial_state = self._cell.zero_state(self.batch_size, tf.float32)
 
-      if(~just_middle): # if not middle layer
-        numb_layers = self.__num_hidden_layers+1
-      else:
-        numb_layers = FLAGS.middle_layer
 
-      # Initial state of the LSTM memory.
-      state = self._initial_state
+      ##############        DEFINE FUNCTIONS       ###############################################
+
+      
+      def single_run(self, input_pl, time_step, state, just_middle = False):
+          """Get the output of the autoencoder for a single batch
+
+          Args:
+            input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
+            state:        current state of LSTM memory units
+            just_middle : will indicate if we want to extract only the middle layer of the network
+          Returns:
+            Tensor of output
+          """
+
+          #Debug
+          #state_val = self.__sess.run(state,feed_dict={lstm : self['lstm']})
+
+          lstm = self._cell
+          last_output = input_pl
+
+          # print(time_step)
+
+          # Pass through the network
+          for i in xrange(self.num_hidden_layers+1):
+                
+            if(i==self.__recurrent_layer):
+              if time_step > 0: tf.get_variable_scope().reuse_variables()
+              (last_output, state) = lstm(last_output, state)
+
+            w = self._w(i + 1)
+            b = self._b(i + 1)
+            last_output = self._activate(last_output, w, b)
+
+          return last_output
+
+      def process_sequences(self, input_seq_pl, dropout, just_middle = False):
+          
+          """Get the output of the autoencoder
+
+          Args:
+            input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+            dropout:          how much of the input neurons will be activated, value in [0,1]
+            just_middle :     will indicate if we want to extract only the middle layer of the network
+          Returns:
+            Tensor of output
+          """
+
+          if(~just_middle): # if not middle layer
+            numb_layers = self.__num_hidden_layers+1
+          else:
+            numb_layers = FLAGS.middle_layer
+
+          # Initial state of the LSTM memory.
+          state = self._initial_state
+            
+          # First - Apply Dropout
+          the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
+
+          # Take batches for every time step and run them through the network
+          # Stack all their outputs
+          with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
+            stacked_outputs = tf.stack( [ single_run(self,the_whole_sequences[:,time_st,:], time_st, state, just_middle) for time_st in range(self.sequence_length) ])
+
+          # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+
+          output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+
+          # print('The final result has a shape:', output.shape)
+          
+          return output
+
+      ##############        DEFINE THE NETWORK LOSS       ###############################################
         
-      # First - Apply Dropout
-      the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
+      # Get some constants from the flags file
+      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+      dropout = FLAGS.dropout # (keep probability) value
+      variance = FLAGS.variance_of_noise
+      batch_size = FLAGS.batch_size
+      chunk_length = FLAGS.chunk_length
 
-      # Take batches for every time step and run them through the network
-      # Stack all their outputs
-      with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
-        stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st, state, just_middle) for time_st in range(self.sequence_length) ])
+      #Define the network itself
+      self._input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
+                                    name='ae_input_pl')
+      self._target_ = tf.placeholder(dtype=tf.float32,
+                                     shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
+                                     name='ae_target_pl')
 
-      # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+      # Define output and loss for the training data
+      output = process_sequences(self,self._input_, dropout) # process batch of sequences
+      self._loss = tf.nn.l2_loss(tf.subtract(output, self._target_)) /(batch_size*chunk_length)
 
-      output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+      # Define output and loss for the test data
+      test_output = process_sequences(self, self._input_, 1) # we do not have dropout during testing
+      with tf.name_scope("eval"):
+        self._test_loss = tf.nn.l2_loss(tf.subtract(test_output, self._target_)) /(batch_size*chunk_length)
+        
 
-      # print('The final result has a shape:', output.shape)
-      
-      return output
+      ##############        DEFINE OPERATIONS       ###############################################
 
+    # Define optimizers
+    learning_rate = FLAGS.pretraining_learning_rate
+    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+        
+
+    print('Optimizer was created')
+        
+    tvars = tf.trainable_variables()
+    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
+    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
+    print('Training operator was created')
+        
   @property
   def shape(self):
     return self.__shape
