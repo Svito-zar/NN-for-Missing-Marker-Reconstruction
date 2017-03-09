@@ -210,6 +210,7 @@ def main_unsupervised(restore, pretrain):
 
         for epoch in xrange(FLAGS.training_epochs):
           for batches in xrange(num_batches):
+              
             feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
             loss_summary, loss_value  = sess.run([ae._train_op, ae._loss],

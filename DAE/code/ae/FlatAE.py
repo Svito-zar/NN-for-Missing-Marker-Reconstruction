@@ -68,16 +68,16 @@ class FlatAutoEncoder(object):
       def lstm_cell():
           return tf.contrib.rnn.BasicLSTMCell(
             lstm_size, forget_bias=1.0, state_is_tuple=True)
-      self._cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
+      self._RNN_cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
                  # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
               
-      self._initial_state = self._cell.zero_state(self.batch_size, tf.float32)
+      self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
 
 
       ##############        DEFINE FUNCTIONS       ###############################################
 
       
-      def single_run(self, input_pl, time_step, state, just_middle = False):
+      def single_run(self, input_pl, time_step, just_middle = False):
           """Get the output of the autoencoder for a single batch
 
           Args:
@@ -87,25 +87,25 @@ class FlatAutoEncoder(object):
           Returns:
             Tensor of output
           """
+          #print(self._RNN_state)
 
-          #Debug
-          #state_val = self.__sess.run(state,feed_dict={lstm : self['lstm']})
-
-          lstm = self._cell
           last_output = input_pl
-
-          # print(time_step)
 
           # Pass through the network
           for i in xrange(self.num_hidden_layers+1):
                 
             if(i==self.__recurrent_layer):
               if time_step > 0: tf.get_variable_scope().reuse_variables()
-              (last_output, state) = lstm(last_output, state)
+              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
             w = self._w(i + 1)
             b = self._b(i + 1)
             last_output = self._activate(last_output, w, b)
+
+          # Maybe apply recurrency at the output layer
+          if(self.num_hidden_layers+1==self.__recurrent_layer):
+              if time_step > 0: tf.get_variable_scope().reuse_variables()
+              (last_output, state) = lstm(last_output, state)
 
           return last_output
 
@@ -127,15 +127,15 @@ class FlatAutoEncoder(object):
             numb_layers = FLAGS.middle_layer
 
           # Initial state of the LSTM memory.
-          state = self._initial_state
+          self._RNN_state = self._initial_state
             
           # First - Apply Dropout
           the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
           # Take batches for every time step and run them through the network
           # Stack all their outputs
-          with tf.control_dependencies([tf.convert_to_tensor(state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ single_run(self,the_whole_sequences[:,time_st,:], time_st, state, just_middle) for time_st in range(self.sequence_length) ])
+          with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
+            stacked_outputs = tf.stack( [ single_run(self,the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 

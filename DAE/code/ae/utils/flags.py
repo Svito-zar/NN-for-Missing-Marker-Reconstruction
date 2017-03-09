@@ -18,7 +18,7 @@ flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 5,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -93,7 +93,7 @@ flags.DEFINE_float('learning_rate_decay', 0.98,
                    'Learning rate decaying factor.')
 
 
-flags.DEFINE_float('variance_of_noise', 0.3, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 
 # Constants
@@ -112,7 +112,7 @@ flags.DEFINE_integer('batch_size', 128,
 
 flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 2000, #60 originaly
+flags.DEFINE_integer('training_epochs', 1500, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 3,
@@ -126,7 +126,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 27, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 35, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
