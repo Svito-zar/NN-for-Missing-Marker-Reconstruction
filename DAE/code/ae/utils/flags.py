@@ -13,12 +13,45 @@ def home_out(path):
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+"""  							Fine-tuning Parameters 				"""
+
 # Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
 flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
+
+#Training characteristics
+flags.DEFINE_float('pretraining_learning_rate', 0.002,
+                   'Initial learning rate.')
+flags.DEFINE_float('training_learning_rate', 1.0e-4,
+                   'Initial learning rate.')
+
+flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+
+
+# Constants
+flags.DEFINE_integer('seed', 12345, 'Random seed')
+
+flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
+
+flags.DEFINE_integer('test_sequences', 32,
+                     'Amount of the testing sequences.Each with the length from flag "chunk_length"')
+
+flags.DEFINE_integer('validation_sequences', 0,
+                     'Amount of the validation sequences. Each with the length from flag "chunk_length"')
+
+flags.DEFINE_integer('batch_size', 32,
+                     'Size of the mini batch')
+
+flags.DEFINE_integer('pretraining_epochs', 200,
+                     "Number of training epochs for pretraining layers")
+flags.DEFINE_integer('training_epochs', 800, #60 originaly
+                     "Number of training epochs for pretraining layers")
+
+flags.DEFINE_integer('amount_of_subfolders', 32, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -82,38 +115,8 @@ flags.DEFINE_integer('hidden6_units', 70,
 
 
 
-""" 							Training characteristics 			"""
+""" 							Other parameters			"""
 
-
-flags.DEFINE_float('pretraining_learning_rate', 0.002,
-                   'Initial learning rate.')
-flags.DEFINE_float('training_learning_rate', 0.001,
-                   'Initial learning rate.')
-flags.DEFINE_float('learning_rate_decay', 0.98,
-                   'Learning rate decaying factor.')
-
-
-flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
-
-
-# Constants
-flags.DEFINE_integer('seed', 12345, 'Random seed')
-
-flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
-
-flags.DEFINE_integer('test_sequences', 128,
-                     'Amount of the testing sequences.Each with the length from flag "chunk_length"')
-
-flags.DEFINE_integer('validation_sequences', 0,
-                     'Amount of the validation sequences. Each with the length from flag "chunk_length"')
-
-flags.DEFINE_integer('batch_size', 128,
-                     'Size of the mini batch')
-
-flags.DEFINE_integer('pretraining_epochs', 200,
-                     "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 1500, #60 originaly
-                     "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('middle_layer', 3,
                      "Which hidden layer is view as a middle layer with the representation")
@@ -126,7 +129,7 @@ flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
 
 flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
-flags.DEFINE_integer('amount_of_subfolders', 35, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',

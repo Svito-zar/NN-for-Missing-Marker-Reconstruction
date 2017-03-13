@@ -87,7 +87,6 @@ def main_unsupervised(restore, pretrain):
 
       print('Flat AE was created : ', ae_shape)
     
-    
     with tf.variable_scope("Train") as main_scope:
 
         #gloabal_step = tf.get_variable("global_step")
@@ -240,7 +239,7 @@ def main_unsupervised(restore, pretrain):
           if(epoch%20==0 & epoch>0):
               
             # Print an output for a specific sequence into a file
-            write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
+            write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
                 
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -251,67 +250,18 @@ def main_unsupervised(restore, pretrain):
     
     # Save a model
     
-    saver.save(sess, FLAGS.model_dir+'/FlatAe')
+    #saver.save(sess, FLAGS.model_dir+'/FlatAe')
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
-    print("The program was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
+    print("The training was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    #write_bvh_file(ae, FLAGS.data_dir+'/37/37_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
+    ae.read_process_write_bvh_file(FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
   
-  return ae
-
-def write_bvh_file(ae, input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
-   print('Take a test sequence from the file',input_seq_file_name)
-   print('And write an output into the file ' + output_bvh_file_name + '...')
-   with ae.session.graph.as_default():
-    sess = ae.session
-
-    # define tensors
-    input_ = tf.placeholder(dtype=tf.float32,
-                                  shape=(None, FLAGS.DoF),
-                                  name='ae_input_pl')
-
-    AE_op = ae.process_sequences(input_ , 1)
-        
-    # get input sequnce
-    inputSequence = read_file(input_seq_file_name)
-
-    # Split it into chunks
-    chunks = np.array([inputSequence [i:i + ae.__sequence_length, :] for i in xrange(0, len(inputSequence )-ae.__sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
-
-    # Substract the mean pose
-    chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
-
-    # Scales all values in the input_data to be between -1 and 1
-    eps=1e-15
-    chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
-
-    # Batch those chunks
-    batches = np.array([chunks_normalized[i:i + ae.__batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.__batch_size + 1, 1)])
-
-    # pass all batches through the AE
-    output_batches = np.array( [ sess.run(AE_op, feed_dict={input_: batches[i,:,:]}) for i in range(len(batches)) ] )
-
-    # Unroll batches into the sequence
-    output_sequences = output_batches.flatten()
-
-    # Convert it back from [-1,1] to original values
-    reconstructed = np.multiply(output_sequences,max_val[np.newaxis,np.newaxis,:]+eps)
-
-    #print("Muplyply_back : ", reconstructed)
-    
-    # Add the mean pose back
-    reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
-
-    # Iclude rotations as well
-    rotations = [ [ [0,0,0] for time_st in range(ae.__sequence_length) ] for snippet in range(ae.__batch_size)]
-    reconstructed = np.concatenate((reconstructed[:,:,0:3],rotations,reconstructed[:,:,3:]), axis=1)
-    
-    np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ') 
+  return ae 
   
 if __name__ == '__main__':
   restore = False

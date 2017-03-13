@@ -73,11 +73,48 @@ class FlatAutoEncoder(object):
               
       self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
 
+      ##############        DEFINE THE NETWORK LOSS       ###############################################
+        
+      # Get some constants from the flags file
+      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+      dropout = FLAGS.dropout # (keep probability) value
+      variance = FLAGS.variance_of_noise
+      batch_size = FLAGS.batch_size
+      chunk_length = FLAGS.chunk_length
 
-      ##############        DEFINE FUNCTIONS       ###############################################
+      #Define the network itself
+      self._input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(None, FLAGS.chunk_length, FLAGS.DoF), #FLAGS.batch_size
+                                    name='ae_input_pl')
+      self._target_ = tf.placeholder(dtype=tf.float32,
+                                     shape=(None, FLAGS.chunk_length, FLAGS.DoF),
+                                     name='ae_target_pl')
 
-      
-      def single_run(self, input_pl, time_step, just_middle = False):
+      # Define output and loss for the training data
+      output = self.process_sequences(self._input_, dropout) # process batch of sequences
+      self._loss = tf.nn.l2_loss(tf.subtract(output, self._target_)) /(batch_size*chunk_length)
+
+      # Define output and loss for the test data
+      self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
+      with tf.name_scope("eval"):
+        self._test_loss = tf.nn.l2_loss(tf.subtract(self._test_output, self._target_)) /(batch_size*chunk_length)
+        
+
+      ##############        DEFINE OPERATIONS       ###############################################
+
+    # Define optimizers
+    learning_rate = FLAGS.pretraining_learning_rate
+    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+        
+
+    print('Optimizer was created')
+        
+    tvars = tf.trainable_variables()
+    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
+    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
+    print('Training operator was created')
+
+  def single_run(self, input_pl, time_step, just_middle = False):
           """Get the output of the autoencoder for a single batch
 
           Args:
@@ -109,7 +146,7 @@ class FlatAutoEncoder(object):
 
           return last_output
 
-      def process_sequences(self, input_seq_pl, dropout, just_middle = False):
+  def process_sequences(self, input_seq_pl, dropout, just_middle = False):
           
           """Get the output of the autoencoder
 
@@ -135,7 +172,7 @@ class FlatAutoEncoder(object):
           # Take batches for every time step and run them through the network
           # Stack all their outputs
           with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ single_run(self,the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
+            stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 
@@ -144,47 +181,6 @@ class FlatAutoEncoder(object):
           # print('The final result has a shape:', output.shape)
           
           return output
-
-      ##############        DEFINE THE NETWORK LOSS       ###############################################
-        
-      # Get some constants from the flags file
-      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
-      dropout = FLAGS.dropout # (keep probability) value
-      variance = FLAGS.variance_of_noise
-      batch_size = FLAGS.batch_size
-      chunk_length = FLAGS.chunk_length
-
-      #Define the network itself
-      self._input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
-                                    name='ae_input_pl')
-      self._target_ = tf.placeholder(dtype=tf.float32,
-                                     shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
-                                     name='ae_target_pl')
-
-      # Define output and loss for the training data
-      output = process_sequences(self,self._input_, dropout) # process batch of sequences
-      self._loss = tf.nn.l2_loss(tf.subtract(output, self._target_)) /(batch_size*chunk_length)
-
-      # Define output and loss for the test data
-      test_output = process_sequences(self, self._input_, 1) # we do not have dropout during testing
-      with tf.name_scope("eval"):
-        self._test_loss = tf.nn.l2_loss(tf.subtract(test_output, self._target_)) /(batch_size*chunk_length)
-        
-
-      ##############        DEFINE OPERATIONS       ###############################################
-
-    # Define optimizers
-    learning_rate = FLAGS.pretraining_learning_rate
-    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
-        
-
-    print('Optimizer was created')
-        
-    tvars = tf.trainable_variables()
-    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
-    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
-    print('Training operator was created')
         
   @property
   def shape(self):
@@ -256,7 +252,62 @@ class FlatAutoEncoder(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
-      
+  def read_process_write_bvh_file(self,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
+   print('Take a test sequence from the file',input_seq_file_name)
+   with self.session.graph.as_default():
+    sess = self.session
+
+    #                    GET THE DATA
+        
+    # get input sequnce
+    inputSequence = read_file(input_seq_file_name)
+
+    # Split it into chunks
+    chunks = np.array([inputSequence [i:i + self.__sequence_length, :] for i in xrange(0, len(inputSequence )-self.__sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
+
+    # Substract the mean pose
+    chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
+
+    # Scales all values in the input_data to be between -1 and 1
+    eps=1e-15
+    chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
+
+    # Batch those chunks
+    batches = np.array([chunks_normalized[i:i + self.__batch_size, :] for i in xrange(0, len(chunks_normalized)-self.__batch_size + 1, FLAGS.chunking_stride)])
+
+    numb_of_batches = batches.shape[0]
+
+    #DEBUG
+    ''' print('Batch size is ', self.__batch_size)
+    print('We have got ',chunks_normalized.shape[0], 'sequences')
+    print('Process it by AE as  ', numb_of_batches , ' batches') '''
+
+    #                    RUN THE NETWORK
+
+    # pass the batches of chunks through the AE
+    output_batches= np.array( [ sess.run(self._test_output , feed_dict={self._input_: batches[i]}) for i in range(numb_of_batches)])
+
+    # Unroll it to back to the sequence
+    output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
+
+    # Convert it back from [-1,1] to original values
+    reconstructed = np.multiply(output_chunks,max_val[np.newaxis,np.newaxis,:]+eps)
+    
+    # Add the mean pose back
+    reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
+
+    #Unroll batches into the sequence
+    reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
+
+    numb_of_chunks = reconstructed.shape[0]
+
+    # Include rotations as well
+    rotations = np.array( [  [0,0,0] for time_st  in range(numb_of_chunks)] ) #in range(self.__sequence_length) for snippet
+    reconstructed = np.concatenate((reconstructed[:,0:3],rotations,reconstructed[:,3:]), axis=1)
+    
+    np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
+
+   print('And write an output into the file ' + output_bvh_file_name + '...')
   
     
   def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
