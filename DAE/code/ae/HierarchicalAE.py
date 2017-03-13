@@ -7,7 +7,7 @@ import numpy as np
 import scipy.io as sio
 import tensorflow as tf
 import time
-from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
+from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file, loss_reconstruction
 from utils.flags import FLAGS
 from utils.utils import tile_raster_images
 
