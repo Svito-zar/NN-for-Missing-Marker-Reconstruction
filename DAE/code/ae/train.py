@@ -70,20 +70,11 @@ def main_unsupervised(restore, pretrain):
     
     with tf.variable_scope("Train") as main_scope:
 
-        
         ##############        DEFINE  Optimizer and training OPERATOR      ####################################
         
         # get an optimizer
 
         train_op = ae._train_op
-        """
-        with tf.variable_scope("Optimizer", reuse=None):
-          optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
-          tvars = tf.trainable_variables()
-          grads, _ = tf.clip_by_global_norm(tf.gradients(loss, tvars),
-                                      1e12)
-          train_op = optimizer.apply_gradients(zip(grads, tvars),
-                    global_step=tf.contrib.framework.get_or_create_global_step())"""
 
         # Create a saver
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
