@@ -157,6 +157,34 @@ class FlatAutoEncoder(object):
 
       return last_output
 
+  def run_shallow(self, input_pl, dropout):
+      """Get the output of the autoencoder,if it would consist
+         only from the first and the last layer
+
+      Args:
+        input_pl:     tf placeholder for ae input data
+        dropout:      how much of the input neurons will be activated, value in [0,1]
+      Returns:
+        Tensor of output
+      """
+      with tf.name_scope("shallow_run"):
+
+        #First - Apply Dropout
+        last_output = tf.nn.dropout(input_pl, dropout)
+
+        # Apply first layer of the network
+        w = self._w(1)
+        b = self._b(1)
+        last_output = self._activate(last_output, w, b)
+
+        # then apply last layer of the network
+        w = self._w(self.__num_hidden_layers+1)
+        b = self._b(self.__num_hidden_layers+1)
+        last_output = self._activate(last_output, w, b)
+                
+      return last_output
+
+
   def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
     """ Writing a middle layer into the matlab file
 

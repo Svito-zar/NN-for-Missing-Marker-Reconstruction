@@ -9,7 +9,6 @@ import tensorflow as tf
 import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
-from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
 
 

@@ -10,7 +10,6 @@ import tensorflow as tf
 import time
 from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
 from utils.flags import FLAGS
-from utils.eval import loss_supervised, evaluation, do_eval_summary
 from utils.utils import tile_raster_images
 # import class for both architectures of AE
 from FlatAE import FlatAutoEncoder    
@@ -96,7 +95,7 @@ def main_unsupervised(restore, pretrain):
           loss = loss_reconstruction(output, target_)
 
         # create an optimizer
-        optimizer_joint =  tf.train.AdamOptimizer(learning_rate=FLAGS.training_learning_rate) #AdamOptimizer(learning_rate=FLAGS.training_learning_rate) # tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, use_locking=False, name='Adadelta')#
+        optimizer_joint =  tf.train.RMSPropOptimizer(learning_rate=FLAGS.training_learning_rate) #AdamOptimizer(learning_rate=FLAGS.training_learning_rate) # tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, use_locking=False, name='Adadelta')#
         joint_train_op = optimizer_joint.minimize(loss, global_step=global_step, name='Joint_optimizer')
 
         # Get the data
@@ -131,7 +130,7 @@ def main_unsupervised(restore, pretrain):
 
         
 	#DEBUG
-        if(pretrain and FLAGS.Hierarchical):
+        if(pretrain):
           with tf.name_scope("Pretrain"):
 
             print('We pretrain for', FLAGS.pretraining_epochs, ' epochs...')

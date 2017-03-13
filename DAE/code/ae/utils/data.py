@@ -201,29 +201,3 @@ def fill_feed_dict_ae(data_set, input_pl, target_pl, keep_prob, variance, dropou
         keep_prob: dropout
     }
     return feed_dict
-
-
-def fill_feed_dict(data_set, images_pl, labels_pl, noise=False):
-  """Fills the feed_dict for training the given step.
-  A feed_dict takes the form of:
-  feed_dict = {
-      <placeholder>: <tensor of values to be passed for placeholder>,
-      ....
-  }
-  Args:
-    data_set: The set of images and labels, from input_data.read_data_sets()
-    images_pl: The images placeholder, from placeholder_inputs().
-    labels_pl: The labels placeholder, from placeholder_inputs().
-  Returns:
-    feed_dict: The feed dictionary mapping from placeholders to values.
-  """
-  # Create the feed_dict for the placeholders filled with the next
-  # `batch size ` examples.
-  images_feed, labels_feed = data_set.next_batch(FLAGS.batch_size)
-  if noise:
-      images_feed = _add_noise(images_feed, FLAGS.drop_out_rate)
-  feed_dict = {
-      images_pl: images_feed,
-      labels_pl: labels_feed,
-  }
-  return feed_dict
