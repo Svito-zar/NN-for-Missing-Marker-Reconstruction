@@ -23,9 +23,9 @@ flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into t
 flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
 
 #Training characteristics
-flags.DEFINE_float('pretraining_learning_rate', 0.002,
+flags.DEFINE_float('pretraining_learning_rate', 0.003,
                    'Initial learning rate.')
-flags.DEFINE_float('training_learning_rate', 1.0e-4,
+flags.DEFINE_float('training_learning_rate', 5.0e-4,
                    'Initial learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -45,12 +45,12 @@ flags.DEFINE_integer('validation_sequences', 0,
 flags.DEFINE_integer('batch_size', 32,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 200,
+flags.DEFINE_integer('pretraining_epochs', 20,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 800, #60 originaly
+flags.DEFINE_integer('training_epochs', 15, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 32, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 3, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags

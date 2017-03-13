@@ -3,11 +3,12 @@
 from __future__ import division
 from __future__ import print_function
 
-from collections import deque
+#from collections import deque
 
 import gzip
 
 import numpy as np
+import tensorflow as tf
 
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
@@ -93,16 +94,18 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   if(stride > chunk_length):
     print('ERROR! \nYou have stride bigger than lentgh of chunks. Please, change those values at flags.py, so that you don\'t ignore the data')
     exit(0)
+
+  #         #########             Get TRAIN data                  ###########
   
-  # go over all folders with the data
-  print('\nReading BVH files from ', FLAGS.amount_of_subfolders, ' folders : ' )
+  # go over all folders with the data, exept for the last one
+  print('\nReading train data : BVH files from ', FLAGS.amount_of_subfolders-1, ' folders : ' )
 
   if(numb_of_folders>4):
       numb_of_folders=numb_of_folders+1 # since we skip the 4th one
 
-  input_data = np.array([])
+  train_data = np.array([])
   # go over all subfolders with the data putting them all into one list
-  for folder_numb in range(1,numb_of_folders+1,1):
+  for folder_numb in range(1,numb_of_folders,1):
     if(folder_numb==4):
       continue
     if(folder_numb<10):
@@ -114,7 +117,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
       curr_sequence = read_file(curr_dir+'/'+filename)
       curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
       # Concatanate curr chunks to all of them
-      input_data = np.vstack([input_data, curr_chunks]) if input_data.size else np.array(curr_chunks)
+      train_data = np.vstack([train_data, curr_chunks]) if train_data.size else np.array(curr_chunks)
       
       """ print('Sizes of the string : ')
       print(curr_sequence.shape)
@@ -126,7 +129,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
       print(curr_chunks[0].shape)
       break """
 
-  [amount_of_strings, seq_length, DoF] = input_data.shape
+  [amount_of_strings, seq_length, DoF] = train_data.shape
 
   if(DoF != FLAGS.DoF):
     raise ValueError(
@@ -135,37 +138,61 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   
   print('\n' + str(amount_of_strings) + ' sequences of length ' + str(seq_length) + ' (with ' + str(DoF) + ' DoF) was read')
 
-  input_data = np.array(input_data)
+  train_data = np.array(train_data)
+
+  #         #########             Get TEST data                  ###########
+  
+  # go over all folders with the data, exept for the last one
+  print('\nReading test data from the last folder : ' )
+
+  folder_numb = numb_of_folders
+
+  test_data = np.array([])
+  if(folder_numb<10):
+    curr_dir = train_dir+'/0'+str(folder_numb)
+  else:
+    curr_dir = train_dir+'/'+str(folder_numb)
+  print(curr_dir)
+  for filename in os.listdir(curr_dir ):
+    curr_sequence = read_file(curr_dir+'/'+filename)
+    curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
+    # Concatanate curr chunks to all of them
+    test_data = np.vstack([test_data, curr_chunks]) if test_data.size else np.array(curr_chunks)
+
+  [amount_of_strings, seq_length, DoF] = test_data.shape
+  
+  print('\n' + str(amount_of_strings) + ' sequences of length ' + str(seq_length) + ' will be used for testing')
+
+  test_data = np.array(test_data)
 
   # Do mean normalization : substract mean pose
   print('\nNormalizing the data ...')
-  mean_pose = input_data.mean(axis=(0,1))
-  input_data = input_data - mean_pose[np.newaxis,np.newaxis,:]
+  mean_pose = train_data.mean(axis=(0,1))
+  train_data = train_data - mean_pose[np.newaxis,np.newaxis,:]
+  test_data = test_data - mean_pose[np.newaxis,np.newaxis,:]
 
   # Scales all values in the input_data to be between -1 and 1
   eps=1e-15
-  max_val = np.amax(np.absolute(input_data), axis=(0,1))
-  input_data =np.divide(input_data,max_val[np.newaxis,np.newaxis,:]+eps)
+  max_train = np.amax(np.absolute(train_data), axis=(0,1))
+  max_test = np.amax(np.absolute(test_data), axis=(0,1))
+  max_val = np.maximum(max_train, max_test)
+  train_data =np.divide(train_data,max_val[np.newaxis,np.newaxis,:]+eps)
+  test_data =np.divide(test_data,max_val[np.newaxis,np.newaxis,:]+eps)
 
   # Chech the data range
-  max_ = input_data.max()
-  min_ = input_data.min()
+  max_ = test_data.max()
+  min_ = test_data.min()
 
   #DEBUG
-  print("MAximum value in the normalized dataset : " + str(max_))
-  print("Minimum value in the normalized dataset : " + str(min_))
+  print("MAximum value in the normalized test dataset : " + str(max_))
+  print("Minimum value in the normalized test dataset : " + str(min_))
 
-  TEST_SIZE = FLAGS.test_sequences
   VALIDATION_SIZE = FLAGS.validation_sequences
 
   # Shuffle the data
   perm = np.arange(amount_of_strings)
   np.random.shuffle(perm)
-  input_data =  input_data[perm]
-
-  train_data = input_data[TEST_SIZE:,:,:]
-
-  test_data = input_data[:TEST_SIZE,:,:]
+  train_data =  train_data[perm]
 
   validation_data = train_data[:VALIDATION_SIZE]
 
@@ -174,7 +201,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   data_sets.test = DataSetPreTraining(test_data, FLAGS.batch_size)
 
   # Assign variance
-  data_sets.train.sigma = np.std(input_data, axis=(0,1))
+  data_sets.train.sigma = np.std(train_data, axis=(0,1))
 
   # Check if we have enough data
   if(data_sets.train._num_chunks < data_sets.train._batch_size):
@@ -204,3 +231,19 @@ def fill_feed_dict_ae(data_set, input_pl, target_pl, keep_prob, variance, dropou
         keep_prob: dropout
     }
     return feed_dict
+
+def loss_reconstruction(output, target):
+  """ Reconstruction error
+
+  Args:
+    output: tensor of net output
+    target: tensor of net we are trying to reconstruct
+  Returns:
+    Scalar tensor of mean eucledean distance
+  """
+  with tf.name_scope("reconstruction_loss"):
+      net_output_tf = tf.convert_to_tensor(output, name='input')
+      target_tf = tf.convert_to_tensor(target, name='target')
+      # Euclidean distance between net_output_tf,target_tf
+      l2diff =  tf.nn.l2_loss(tf.subtract(net_output_tf, target_tf))
+      return l2diff

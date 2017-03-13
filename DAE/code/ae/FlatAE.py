@@ -8,7 +8,7 @@ import scipy.io as sio
 import tensorflow as tf
 from tensorflow.contrib import rnn
 import time
-from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file
+from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file, loss_reconstruction
 from utils.flags import FLAGS
 
 
@@ -92,12 +92,12 @@ class FlatAutoEncoder(object):
 
       # Define output and loss for the training data
       output = self.process_sequences(self._input_, dropout) # process batch of sequences
-      self._loss = tf.nn.l2_loss(tf.subtract(output, self._target_)) /(batch_size*chunk_length)
+      self._loss = loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
 
       # Define output and loss for the test data
       self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
       with tf.name_scope("eval"):
-        self._test_loss = tf.nn.l2_loss(tf.subtract(self._test_output, self._target_)) /(batch_size*chunk_length)
+        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
         
 
       ##############        DEFINE OPERATIONS       ###############################################

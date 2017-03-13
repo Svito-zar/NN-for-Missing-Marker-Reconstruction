@@ -89,37 +89,11 @@ def main_unsupervised(restore, pretrain):
     
     with tf.variable_scope("Train") as main_scope:
 
-        #gloabal_step = tf.get_variable("global_step")
-
-        '''input_ = tf.placeholder(dtype=tf.float32,
-                                shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
-                                name='ae_input_pl')
-        target_ = tf.placeholder(dtype=tf.float32,
-                                 shape=(FLAGS.batch_size, FLAGS.chunk_length, FLAGS.DoF),
-                                 name='ae_target_pl')
-        '''
-        
-        """output = ae.process_sequences(input_, dropout) # process batch of sequences
-
-        with tf.name_scope("training_loss"):
-          loss = loss_reconstruction(output, target_)/(batch_size*chunk_length)
-
         ##############        DEFINE  Optimizer and training OPERATOR      ####################################
-
-        """
-
         
         # get an optimizer
 
         train_op = ae._train_op
-        """
-        with tf.variable_scope("Optimizer", reuse=None):
-          optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
-          tvars = tf.trainable_variables()
-          grads, _ = tf.clip_by_global_norm(tf.gradients(loss, tvars),
-                                      1e12)
-          train_op = optimizer.apply_gradients(zip(grads, tvars),
-                    global_step=tf.contrib.framework.get_or_create_global_step())"""
 
         # Create a saver
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
@@ -127,9 +101,9 @@ def main_unsupervised(restore, pretrain):
         # Get the data
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
 
-        #print('Variations: ', data.train.sigma)
+        print('Variations: ', data.train.sigma)
 
-        #print('Max values: ', max_val)
+        print('Max values: ', max_val)
 
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
