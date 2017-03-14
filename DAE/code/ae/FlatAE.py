@@ -63,7 +63,7 @@ class FlatAutoEncoder(object):
             self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
 
       # Define LSTM cell
-      lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer < self.num_hidden_layers+1 else self.num_hidden_layers+1
+      lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
       num_LSTM_layers = 1 # TODO: change
       def lstm_cell():
           return tf.contrib.rnn.BasicLSTMCell(
@@ -142,7 +142,7 @@ class FlatAutoEncoder(object):
           # Maybe apply recurrency at the output layer
           if(self.num_hidden_layers+1==self.__recurrent_layer):
               if time_step > 0: tf.get_variable_scope().reuse_variables()
-              (last_output, state) = lstm(last_output, state)
+              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
           return last_output
 

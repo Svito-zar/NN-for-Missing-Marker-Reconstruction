@@ -101,9 +101,8 @@ def main_unsupervised(restore, pretrain):
         # Get the data
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
 
-        print('Variations: ', data.train.sigma)
-
-        print('Max values: ', max_val)
+        #print('Variations: ', data.train.sigma)
+        #print('Max values: ', max_val)
 
         reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
@@ -239,7 +238,7 @@ def main_unsupervised(restore, pretrain):
   
 if __name__ == '__main__':
   restore = False
-  pretrain = True
+  pretrain = FLAGS.Pretraining
   ae = main_unsupervised(restore, pretrain)
   #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
 

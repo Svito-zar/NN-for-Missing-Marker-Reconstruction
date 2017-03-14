@@ -20,7 +20,7 @@ flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 6,'At which layer we are going to apply recurrency')
 
 #Training characteristics
 flags.DEFINE_float('pretraining_learning_rate', 0.003,
@@ -36,27 +36,28 @@ flags.DEFINE_integer('seed', 12345, 'Random seed')
 
 flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('test_sequences', 32,
+flags.DEFINE_integer('test_sequences', 64,
                      'Amount of the testing sequences.Each with the length from flag "chunk_length"')
 
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 32,
+flags.DEFINE_integer('batch_size', 64,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 20,
+flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 15, #60 originaly
+flags.DEFINE_integer('training_epochs', 1500, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 3, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
+flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining')
   
 
 """ 							HIRERARCHICAL AE 			"""
