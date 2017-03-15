@@ -49,7 +49,7 @@ def main_unsupervised(restore, pretrain):
       encode3 = int(FLAGS.representation_size)
 
       # Create an autoencoder
-      ae = HierarchicalAE(FLAGS.DoF, encode1, encode2, encode3, sess)
+      ae = HierarchicalAE(FLAGS.DoF, np.array(encode1), np.array(encode2), np.array(encode3), sess)
     
     else:
       # Get variables from flags
@@ -78,13 +78,13 @@ def main_unsupervised(restore, pretrain):
         # Get the data
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
     
-	# Check, if we have enough data
-	if(batch_size > data.train._num_chunks):
-      		print('ERROR! Cannot have less train sequences than a batch size!')
-      		exit(1)
-	if(batch_size > data.test._num_chunks):
-      		print('ERROR! Cannot have less test sequences than a batch size!')
-      		exit(1)
+        # Check, if we have enough data
+        if(batch_size > data.train._num_chunks):
+          print('ERROR! Cannot have less train sequences than a batch size!')
+          exit(1)
+        if(batch_size > data.test._num_chunks):
+          print('ERROR! Cannot have less test sequences than a batch size!')
+          exit(1)
 
         #print('Variations: ', data.train.sigma)
         #print('Max values: ', max_val)
@@ -105,16 +105,14 @@ def main_unsupervised(restore, pretrain):
 
         num_batches = int(data.train._num_chunks/data.train._batch_size)
         num_test_batches = int(data.test._num_chunks/batch_size)
-
-        print('\nWe train on ', num_batches, ' batches with ', batch_size, ' sequences of length ' + str(FLAGS.chunk_length) +' in each ...')
-
+        
         test_loss = ae._test_loss
 
-	#DEBUG
+        #DEBUG
         if(pretrain):
           with tf.name_scope("Pretrain"):
 
-            print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...')
+            print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
 
             
             shallow_output = ae.process_sequences_shallow(ae._input_, dropout)
@@ -159,11 +157,11 @@ def main_unsupervised(restore, pretrain):
           new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir+'/'))
           
         # Train the whole network jointly
-        print('We train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
+        print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
         
-        print("\n\n")
-        print("| Batch number  | Error    |   Epoch  |")
-        print("|---------------|----------|----------|")
+        print("")
+        print("|  Epoch  | Error   |")
+        print("|-------- |---------|")
 
 
         for epoch in xrange(FLAGS.training_epochs):
@@ -180,8 +178,8 @@ def main_unsupervised(restore, pretrain):
           tr_summary_writer.add_summary(train_summary, epoch)
                 
           # Print results of screen
-          output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
-                         .format(batches,  train_error_, data.train._epochs_completed + 1)
+          output = "| Epoch {0:2}|{1:8.4f} |"\
+                         .format(data.train._epochs_completed + 1,  train_error_)
           print(output)
 
           #Evaluate on the test sequences
@@ -203,19 +201,71 @@ def main_unsupervised(restore, pretrain):
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
             saver.save(sess, 'FLAGS.model_dir'+'/FlatAe', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.
-    print("Final train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
+    print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The training was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
 
     # Print an output for a specific sequence into a file
-    ae.read_process_write_bvh_file(FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
+    read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
   
   return ae 
-  
+
+def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
+   print('\nTake a test sequence from the file',input_seq_file_name)
+   with ae.session.graph.as_default():
+    sess = ae.session
+
+    #                    GET THE DATA
+        
+    # get input sequnce
+    inputSequence = read_file(input_seq_file_name)
+
+    # Split it into chunks
+    chunks = np.array([inputSequence [i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
+
+    # Substract the mean pose
+    chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
+
+    # Scales all values in the input_data to be between -1 and 1
+    eps=1e-15
+    chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
+
+    # Batch those chunks
+    batches = np.array([chunks_normalized[i:i + ae.batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.batch_size + 1, FLAGS.chunking_stride)])
+
+    numb_of_batches = batches.shape[0]
+
+    #                    RUN THE NETWORK
+
+    # pass the batches of chunks through the AE
+    output_batches= np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+
+    # Unroll it to back to the sequence
+    output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
+
+    # Convert it back from [-1,1] to original values
+    reconstructed = np.multiply(output_chunks,max_val[np.newaxis,np.newaxis,:]+eps)
+    
+    # Add the mean pose back
+    reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
+
+    #Unroll batches into the sequence
+    reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
+
+    numb_of_chunks = reconstructed.shape[0]
+
+    # Include rotations as well
+    rotations = np.array( [  [0,0,0] for time_st  in range(numb_of_chunks)] ) #in range(ae.__sequence_length) for snippet
+    reconstructed = np.concatenate((reconstructed[:,0:3],rotations,reconstructed[:,3:]), axis=1)
+    
+    np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
+
+   print('And write an output into the file ' + output_bvh_file_name + '...')
+   
 if __name__ == '__main__':
   restore = False
   pretrain = FLAGS.Pretraining

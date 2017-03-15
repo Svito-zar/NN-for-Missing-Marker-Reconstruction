@@ -20,7 +20,7 @@ flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 6,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 1,'At which layer we are going to apply recurrency')
 
 #Training characteristics
 flags.DEFINE_float('pretraining_learning_rate', 0.003,
@@ -42,17 +42,17 @@ flags.DEFINE_integer('validation_sequences', 0,
 flags.DEFINE_integer('batch_size', 64,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 200,
+flags.DEFINE_integer('pretraining_epochs', 10,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 1000, #60 originaly
+flags.DEFINE_integer('training_epochs', 10, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 33, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', False,
+flags.DEFINE_boolean('Hierarchical', True,
                      'Whether AE is hierarchical')
 flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
 
@@ -126,7 +126,7 @@ flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
 flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
                     'File for saving the parameters values')
 
-flags.DEFINE_string('summary_dir', home_out('summaries'), 
+flags.DEFINE_string('summary_dir', home_out('summaries_for_sequences'), 
                     'Directory to put the summary data')
 
 flags.DEFINE_string('chkpt_dir', home_out('chkpts'),
