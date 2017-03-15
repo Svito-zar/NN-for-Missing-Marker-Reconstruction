@@ -35,10 +35,6 @@ def main_unsupervised(restore, pretrain):
     chunk_length = FLAGS.chunk_length
 
     # Check if the flags makes sence
-    if(batch_size > FLAGS.test_sequences):
-      print('ERROR! Cannot have less test sequences than a batch size!')
-      exit(1)
-
     if(learning_rate < 0 or dropout < 0 or variance < 0):
       print('ERROR! Have got negative values in the flags!')
       exit(1)
@@ -81,6 +77,15 @@ def main_unsupervised(restore, pretrain):
 
         # Get the data
         data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
+    
+	# Check, if we have enough data
+	if(batch_size > data.train._num_chunks):
+      		print('ERROR! Cannot have less train sequences than a batch size!')
+      		exit(1)
+	if(batch_size > data.test._num_chunks):
+      		print('ERROR! Cannot have less test sequences than a batch size!')
+      		exit(1)
+
 
         #print('Variations: ', data.train.sigma)
         #print('Max values: ', max_val)
@@ -214,7 +219,7 @@ def main_unsupervised(restore, pretrain):
   
 if __name__ == '__main__':
   restore = False
-  pretrain = True
+  pretrain = FLAGS.Pretraining
   ae = main_unsupervised(restore, pretrain)
 
   #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')

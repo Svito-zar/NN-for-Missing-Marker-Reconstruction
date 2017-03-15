@@ -100,7 +100,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   # go over all folders with the data, exept for the last one
   print('\nReading train data : BVH files from ', FLAGS.amount_of_subfolders-1, ' folders : ' )
 
-  if(numb_of_folders>4):
+  if(numb_of_folders>=4):
       numb_of_folders=numb_of_folders+1 # since we skip the 4th one
 
   train_data = np.array([])
@@ -119,16 +119,6 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
       # Concatanate curr chunks to all of them
       train_data = np.vstack([train_data, curr_chunks]) if train_data.size else np.array(curr_chunks)
       
-      """ print('Sizes of the string : ')
-      print(curr_sequence.shape)
-      print(curr_sequence)
-      
-      print('Sizes of the chunks : ')
-      print(curr_chunks.shape)
-      print(curr_chunks[0])
-      print(curr_chunks[0].shape)
-      break """
-
   [amount_of_strings, seq_length, DoF] = train_data.shape
 
   if(DoF != FLAGS.DoF):
@@ -136,7 +126,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
           'Invalid amount of Degrees Of Freedom (%d) %d in the FLAGS file!' %
           (DoF, FLAGS.DoF))
   
-  print('\n' + str(amount_of_strings) + ' sequences of length ' + str(seq_length) + ' (with ' + str(DoF) + ' DoF) was read')
+  print('\n' + str(amount_of_strings) + ' sequences with length ' + str(seq_length) + ' (with ' + str(DoF) + ' DoF) was read')
 
   train_data = np.array(train_data)
 
@@ -159,9 +149,9 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
     # Concatanate curr chunks to all of them
     test_data = np.vstack([test_data, curr_chunks]) if test_data.size else np.array(curr_chunks)
 
-  [amount_of_strings, seq_length, DoF] = test_data.shape
+  [amount_of_test_strings, seq_length, DoF] = test_data.shape
   
-  print('\n' + str(amount_of_strings) + ' sequences of length ' + str(seq_length) + ' will be used for testing')
+  print('\n' + str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for testing')
 
   test_data = np.array(test_data)
 
