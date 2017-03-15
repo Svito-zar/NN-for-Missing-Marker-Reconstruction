@@ -39,7 +39,7 @@ flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 32,
+flags.DEFINE_integer('batch_size', 64,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs', 200,
@@ -54,9 +54,7 @@ flags.DEFINE_integer('amount_of_subfolders', 33, 'Amount of subfolders in the fo
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
-flags.DEFINE_boolean('Pretraining', True,
-                     'Whether we do pretraining')
-  
+flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
 
 """ 							HIRERARCHICAL AE 			"""
 

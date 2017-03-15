@@ -86,7 +86,6 @@ def main_unsupervised(restore, pretrain):
       		print('ERROR! Cannot have less test sequences than a batch size!')
       		exit(1)
 
-
         #print('Variations: ', data.train.sigma)
         #print('Max values: ', max_val)
 
