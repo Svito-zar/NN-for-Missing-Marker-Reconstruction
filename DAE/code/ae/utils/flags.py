@@ -20,13 +20,13 @@ flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 6,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 7,'At which layer we are going to apply recurrency')
 
 #Training characteristics
-flags.DEFINE_float('pretraining_learning_rate', 0.003,
-                   'Initial learning rate.')
-flags.DEFINE_float('training_learning_rate', 5.0e-4,
-                   'Initial learning rate.')
+flags.DEFINE_float('pretraining_learning_rate', 0.0005,
+                   'pretraining learning rate.')
+flags.DEFINE_float('training_learning_rate', 10.0e-4,
+                   'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
@@ -34,12 +34,12 @@ flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
 
-flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 0.85, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 64,
+flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs', 200,
@@ -47,7 +47,7 @@ flags.DEFINE_integer('pretraining_epochs', 200,
 flags.DEFINE_integer('training_epochs', 1000, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 33, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 12, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags
@@ -87,15 +87,15 @@ flags.DEFINE_integer('representation_size', 20,
 
 flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
-flags.DEFINE_integer('hidden1_units', 160,
+flags.DEFINE_integer('hidden1_units', 65,
                      'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2_units', 60,
+flags.DEFINE_integer('hidden2_units', 30,
                      'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3_units', 20,
                      'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4_units', 60,
+flags.DEFINE_integer('hidden4_units', 30,
                      'Number of units in hidden layer 4.') 
-flags.DEFINE_integer('hidden5_units', 160,
+flags.DEFINE_integer('hidden5_units', 65,
                      'Number of units in hidden layer 5.')
 flags.DEFINE_integer('hidden6_units', 70,
                      'Number of units in hidden layer 6.') 
@@ -126,7 +126,7 @@ flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
 flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
                     'File for saving the parameters values')
 
-flags.DEFINE_string('summary_dir', home_out('summaries'), 
+flags.DEFINE_string('summary_dir', home_out('summaries_exp'), 
                     'Directory to put the summary data')
 
 flags.DEFINE_string('chkpt_dir', home_out('chkpts'),

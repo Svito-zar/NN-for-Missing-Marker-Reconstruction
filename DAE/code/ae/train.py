@@ -29,13 +29,12 @@ def main_unsupervised(restore, pretrain):
     # Read the flags
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
     dropout = FLAGS.dropout # (keep probability) value
-    learning_rate = FLAGS.pretraining_learning_rate
     variance = FLAGS.variance_of_noise
     batch_size = FLAGS.batch_size
     chunk_length = FLAGS.chunk_length
 
     # Check if the flags makes sence
-    if(learning_rate < 0 or dropout < 0 or variance < 0):
+    if(dropout < 0 or variance < 0):
       print('ERROR! Have got negative values in the flags!')
       exit(1)
     
