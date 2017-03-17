@@ -47,9 +47,12 @@ class HierarchicalAE(object):
     self.__encode1 = encode1
     self.__encode2 = encode2
     self.__encode3 = encode3
+    self.__shape = [DoF, encode1.sum(), encode2.sum(), encode3.sum(), encode2.sum(), encode1.sum(), DoF]
 
-
-    self.__curr_batch_size = FLAGS.batch_size                         # The size of the current batch AE is working with
+    self.__num_hidden_layers = 5 # HARDCODED NUMBER
+    self.__recurrent_layer = FLAGS.recurrent_layer
+    self.__sequence_length = FLAGS.chunk_length
+    self.__batch_size = FLAGS.batch_size                         # The size of the current batch AE is working with
 
     self.__variables = {}
     self.__sess = sess
@@ -60,6 +63,14 @@ class HierarchicalAE(object):
   def DoF(self):
     return self.__DoF
 
+  @property
+  def batch_size(self):
+    return self.__batch_size
+
+  @property
+  def sequence_length(self):
+    return self.__sequence_length
+  
   @property
   def num_hidden_layers(self):
     return self.__num_hidden_layers
@@ -96,7 +107,7 @@ class HierarchicalAE(object):
     self.__variables[key] = value
 
   def _setup_variables(self):
-    with tf.name_scope("hiererchical_autoencoder_variables"):
+    with tf.variable_scope("hiererchical_autoencoder_variables"):
 
       print('Setting up the variables for Hierarchical Autoencoder...\n')
 
@@ -124,7 +135,6 @@ class HierarchicalAE(object):
         b_init = tf.zeros(b_shape)
         self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
-      print('\n')
       
       # *******************      Second layer weights and biases   ************
       name_w = "w_upper_body"
@@ -139,7 +149,7 @@ class HierarchicalAE(object):
       b_init = tf.zeros(b_shape)
       self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
       #DEBUG
-      print('Next body part name is : ', name_w , 'It has a shape : ', w_shape )
+      print('\nNext body part name is : ', name_w , 'It has a shape : ', w_shape )
       
       name_w = "w_lower_body"  
       w_shape = (self.__encode1[3] + self.__encode1[4], self.__encode2[1]) # both legs -> lower body
@@ -232,6 +242,57 @@ class HierarchicalAE(object):
         b_init = tf.zeros(b_shape)
         self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
+      # Define LSTM cell
+      lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
+      num_LSTM_layers = 1 # TODO: change
+      def lstm_cell():
+          return tf.contrib.rnn.BasicLSTMCell(
+            lstm_size, forget_bias=1.0, state_is_tuple=True)
+      self._RNN_cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
+                 # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
+              
+      self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
+
+      ##############        DEFINE THE NETWORK LOSS       ###############################################
+        
+      # Get some constants from the flags file
+      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+      dropout = FLAGS.dropout # (keep probability) value
+      variance = FLAGS.variance_of_noise
+      batch_size = FLAGS.batch_size
+      chunk_length = FLAGS.chunk_length
+
+      #Define the network itself
+      self._input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(None, FLAGS.chunk_length, FLAGS.DoF), #FLAGS.batch_size
+                                    name='ae_input_pl')
+      self._target_ = tf.placeholder(dtype=tf.float32,
+                                     shape=(None, FLAGS.chunk_length, FLAGS.DoF),
+                                     name='ae_target_pl')
+
+      # Define output and loss for the training data
+      output = self.process_sequences(self._input_, dropout) # process batch of sequences
+      self._loss = loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
+
+      # Define output and loss for the test data
+      self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
+      with tf.name_scope("eval"):
+        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
+        
+
+      ##############        DEFINE OPERATIONS       ###############################################
+
+    # Define optimizers
+    learning_rate = FLAGS.pretraining_learning_rate
+    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+        
+    print('\nOptimizer was created')
+        
+    tvars = tf.trainable_variables()
+    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
+    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
+    print('Training operator was created')
+    
   def _w(self, n, suffix=""):
     return self["w_" + suffix]
 
@@ -243,23 +304,21 @@ class HierarchicalAE(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
     return y
 
-  def run_net(self, input_pl, dropout, just_middle = False):
+  def single_run(self, input_pl, time_step, just_middle = False):
       """Get the output of the autoencoder
 
       Args:
-        numb_layers:    untill which layer should network run
-        input_pl: tf placeholder for ae input data
+        input_pl: tf placeholder for a current batch
         dropout:  how much of the input neurons will be activated, value in [0,1]
         just_middle : will indicate if we want to extract only the middle layer of the network
       Returns:
         Tensor of output
       """
       with tf.name_scope("hiererchical_AE_run"):
-        #First - Apply Dropout
-        last_output = tf.nn.dropout(input_pl, dropout)
-
+        
+        last_output = input_pl
+        
         #########################            ENCODING                ######################3
-
 
         #Extract the part of the data, which belongs to each body part
         # This part is format specific. And hardcoded!
@@ -268,22 +327,22 @@ class HierarchicalAE(object):
           
           with tf.variable_scope("Body_part_extraction"):
             
-            indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__batch_size)]
             body_in = tf.gather_nd(last_output, indices, name=None) # changes the whole body
             
-            indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__batch_size)]
             spine = tf.gather_nd(last_output, indices, name=None) # chest and head
         
-            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__batch_size)]
             r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
 
-            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__batch_size)]
             l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
 
-            indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__batch_size)]
             r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
 
-            indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__curr_batch_size)]
+            indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__batch_size)]
             l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
 
             hierarchical_input = [spine, r_Arm, l_Arm, r_Leg, l_Leg]
@@ -298,6 +357,7 @@ class HierarchicalAE(object):
             for bp_id in range(len(self.__encode1)): # bp_id - body part ID
               name_of_body_part = self._body_part_names[bp_id]
               first_hidden_layer.append(self._activate(hierarchical_input[bp_id], self["w_"+name_of_body_part], self["b_"+name_of_body_part]))
+
 
           with tf.variable_scope("Upper_lower_concat"):
             
@@ -334,9 +394,9 @@ class HierarchicalAE(object):
 
           # Slice it back into 3 parts : upper, lower body and the bits, which are affection the whole body
           with tf.variable_scope("Slice_into_upper_and_lower"):
-            body_decode = tf.slice(whole_body_decode, [0,0], [self.__curr_batch_size,self._body_channels], name = 'body_decode')
-            upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__curr_batch_size,FLAGS.upper_body_neurons], name = 'upper_body_slice')
-            lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__curr_batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
+            body_decode = tf.slice(whole_body_decode, [0,0], [self.__batch_size,self._body_channels], name = 'body_decode')
+            upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__batch_size,FLAGS.upper_body_neurons], name = 'upper_body_slice')
+            lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
 
           with tf.variable_scope("Decode_upper_and_lower"):
             ################    2nd layer decoding    ##################
@@ -346,11 +406,11 @@ class HierarchicalAE(object):
 
           # Slice it back to the body parts
           with tf.variable_scope("Slice_into_body_parts"):
-            spine_slice = tf.slice(upper_body_decode,[0,0],[self.__curr_batch_size, self.__encode1[0]], name = 'spine_decode_slice')
-            r_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]],[self.__curr_batch_size, self.__encode1[1]])
-            l_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]+self.__encode1[1]],[self.__curr_batch_size, self.__encode1[2]])
-            r_leg_slice = tf.slice(lower_body_decode,[0,0],[self.__curr_batch_size, self.__encode1[3]])
-            l_leg_slice = tf.slice(lower_body_decode,[0,self.__encode1[3]],[self.__curr_batch_size, self.__encode1[4]])
+            spine_slice = tf.slice(upper_body_decode,[0,0],[self.__batch_size, self.__encode1[0]], name = 'spine_decode_slice')
+            r_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]],[self.__batch_size, self.__encode1[1]])
+            l_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]+self.__encode1[1]],[self.__batch_size, self.__encode1[2]])
+            r_leg_slice = tf.slice(lower_body_decode,[0,0],[self.__batch_size, self.__encode1[3]])
+            l_leg_slice = tf.slice(lower_body_decode,[0,self.__encode1[3]],[self.__batch_size, self.__encode1[4]])
             
 
           ################    4rd decoding  layer  ##################
@@ -366,30 +426,63 @@ class HierarchicalAE(object):
 
       return output
 
-  def run_shallow(self, input_pl, dropout):
+  def process_sequences(self, input_seq_pl, dropout, just_middle = False):
+    """Get the output of the autoencoder
+
+    Args:
+        input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+        dropout:          how much of the input neurons will be activated, value in [0,1]
+        just_middle :     will indicate if we want to extract only the middle layer of the network
+    Returns:
+        Tensor of output
+    """
+    if(~just_middle): # if not middle layer
+      numb_layers = self.__num_hidden_layers+1
+    else:
+      numb_layers = FLAGS.middle_layer
+
+    # Initial state of the LSTM memory.
+    self._RNN_state = self._initial_state
+            
+    # First - Apply Dropout
+    the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
+
+    # Take batches for every time step and run them through the network
+    # Stack all their outputs
+    with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
+      stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
+
+    # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+
+    output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+
+    #print('The final result has a shape:', output.shape)
+          
+    return output
+        
+  def single_run_shallow(self, input_pl):
       with tf.name_scope("shallow_run"):
 
-        #First - Apply Dropout
-        last_output = tf.nn.dropout(input_pl, dropout)
+        last_output = input_pl
         
         with tf.variable_scope("Shalow_Encoding"):
             with tf.variable_scope("Extract_Body_parts"):
-              indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__batch_size)]
               body_in = tf.gather_nd(last_output, indices, name=None) # changes the whole body
               
-              indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__batch_size)]
               spine = tf.gather_nd(last_output, indices, name=None) # chest and head
           
-              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__batch_size)]
               r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
 
-              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__batch_size)]
               l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
 
-              indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__batch_size)]
               r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
 
-              indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__curr_batch_size)]
+              indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__batch_size)]
               l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
 
               hierarchical_input = [spine, r_Arm, l_Arm, r_Leg, l_Leg]
@@ -415,6 +508,34 @@ class HierarchicalAE(object):
               output = tf.concat([body_in, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode],1, name='concat')
               
       return output
+
+  def process_sequences_shallow(self, input_seq_pl, dropout):
+          """Get the output of the autoencoder, reduced to just the first and the last layers
+
+          Args:
+            input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+            dropout:          how much of the input neurons will be activated, value in [0,1]
+          Returns:
+            Tensor of output
+          """
+
+          numb_layers = FLAGS.middle_layer
+
+          # Initial state of the LSTM memory.
+          self._RNN_state = self._initial_state
+            
+          # First - Apply Dropout
+          the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
+
+          # Take batches for every time step and run them through the network
+          # Stack all their outputs
+          stacked_outputs = tf.stack( [ self.single_run_shallow(the_whole_sequences[:,time_st,:]) for time_st in range(self.sequence_length) ])
+
+          # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+
+          output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+
+          return output
 
     
   def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
@@ -442,8 +563,8 @@ class HierarchicalAE(object):
                                     shape=(None, FLAGS.DoF),
                                     name='ae_input_pl')
       # Define the size of current input sequence
-      self.__curr_batch_size = len(currSequence)
-      print("Length of curr seq. : " + str(self.__curr_batch_size))
+      self.__batch_size = len(currSequence)
+      print("Length of curr seq. : " + str(self.__batch_size))
 
       # Define on an operator
       middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout

@@ -251,63 +251,6 @@ class FlatAutoEncoder(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
-  def read_process_write_bvh_file(self,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
-   print('Take a test sequence from the file',input_seq_file_name)
-   with self.session.graph.as_default():
-    sess = self.session
-
-    #                    GET THE DATA
-        
-    # get input sequnce
-    inputSequence = read_file(input_seq_file_name)
-
-    # Split it into chunks
-    chunks = np.array([inputSequence [i:i + self.__sequence_length, :] for i in xrange(0, len(inputSequence )-self.__sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
-
-    # Substract the mean pose
-    chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
-
-    # Scales all values in the input_data to be between -1 and 1
-    eps=1e-15
-    chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
-
-    # Batch those chunks
-    batches = np.array([chunks_normalized[i:i + self.__batch_size, :] for i in xrange(0, len(chunks_normalized)-self.__batch_size + 1, FLAGS.chunking_stride)])
-
-    numb_of_batches = batches.shape[0]
-
-    #DEBUG
-    ''' print('Batch size is ', self.__batch_size)
-    print('We have got ',chunks_normalized.shape[0], 'sequences')
-    print('Process it by AE as  ', numb_of_batches , ' batches') '''
-
-    #                    RUN THE NETWORK
-
-    # pass the batches of chunks through the AE
-    output_batches= np.array( [ sess.run(self._test_output , feed_dict={self._input_: batches[i]}) for i in range(numb_of_batches)])
-
-    # Unroll it to back to the sequence
-    output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
-
-    # Convert it back from [-1,1] to original values
-    reconstructed = np.multiply(output_chunks,max_val[np.newaxis,np.newaxis,:]+eps)
-    
-    # Add the mean pose back
-    reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
-
-    #Unroll batches into the sequence
-    reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
-
-    numb_of_chunks = reconstructed.shape[0]
-
-    # Include rotations as well
-    rotations = np.array( [  [0,0,0] for time_st  in range(numb_of_chunks)] ) #in range(self.__sequence_length) for snippet
-    reconstructed = np.concatenate((reconstructed[:,0:3],rotations,reconstructed[:,3:]), axis=1)
-    
-    np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
-
-   print('And write an output into the file ' + output_bvh_file_name + '...')
-
   def run_shallow(self, input_pl):
       """Get the output of the autoencoder,if it would consist
          only from the first and the last layer
@@ -336,12 +279,11 @@ class FlatAutoEncoder(object):
       return last_output
 
   def process_sequences_shallow(self, input_seq_pl, dropout):
-          """Get the output of the autoencoder
+          """Get the output of the autoencoder, reduced to just the first and the last layers
 
           Args:
             input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
             dropout:          how much of the input neurons will be activated, value in [0,1]
-            just_middle :     will indicate if we want to extract only the middle layer of the network
           Returns:
             Tensor of output
           """

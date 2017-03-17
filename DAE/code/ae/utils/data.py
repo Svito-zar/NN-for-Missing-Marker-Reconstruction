@@ -126,7 +126,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
           'Invalid amount of Degrees Of Freedom (%d) %d in the FLAGS file!' %
           (DoF, FLAGS.DoF))
   
-  print('\n' + str(amount_of_strings) + ' batches of sequences with length ' + str(seq_length) + ' (with ' + str(DoF) + ' DoF) was read')
+  print('\n' + str(amount_of_strings) + ' sequences with length ' + str(seq_length) + ' (with ' + str(DoF) + ' DoF) was read')
 
   train_data = np.array(train_data)
 
@@ -151,7 +151,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
 
   [amount_of_test_strings, seq_length, DoF] = test_data.shape
   
-  print('\n' + str(amount_of_test_strings) + ' batches of sequences with length ' + str(seq_length) + ' will be used for testing')
+  print('\n' + str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for testing')
 
   test_data = np.array(test_data)
 

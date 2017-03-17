@@ -25,7 +25,7 @@ flags.DEFINE_integer('recurrent_layer', 7,'At which layer we are going to apply 
 #Training characteristics
 flags.DEFINE_float('pretraining_learning_rate', 0.0005,
                    'pretraining learning rate.')
-flags.DEFINE_float('training_learning_rate', 10.0e-4,
+flags.DEFINE_float('training_learning_rate', 0.0008,
                    'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -44,7 +44,7 @@ flags.DEFINE_integer('batch_size', 16,
 
 flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 1000, #60 originaly
+flags.DEFINE_integer('training_epochs', 1300, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('amount_of_subfolders', 12, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
@@ -52,7 +52,7 @@ flags.DEFINE_integer('amount_of_subfolders', 12, 'Amount of subfolders in the fo
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', False,
+flags.DEFINE_boolean('Hierarchical', True,
                      'Whether AE is hierarchical')
 flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
 
@@ -126,7 +126,7 @@ flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
 flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
                     'File for saving the parameters values')
 
-flags.DEFINE_string('summary_dir', home_out('summaries_exp'), 
+flags.DEFINE_string('summary_dir', home_out('summaries'), 
                     'Directory to put the summary data')
 
 flags.DEFINE_string('chkpt_dir', home_out('chkpts'),
