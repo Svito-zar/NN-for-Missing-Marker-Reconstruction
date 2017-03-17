@@ -15,7 +15,7 @@ from utils.utils import tile_raster_images
 from FlatAE import FlatAutoEncoder    
 from HierarchicalAE import HierarchicalAE
 
-def main_unsupervised(restore, pretrain):
+def learning(data, restore, pretrain, variance_opt):
   """ Unsupervised pretraining of the autoencoder
 
   Returns:
@@ -24,13 +24,37 @@ def main_unsupervised(restore, pretrain):
   with tf.Graph().as_default() as g:
     sess = tf.Session()
 
+    # Create an AE
+    if(FLAGS.Hierarchical):
+      
+        # Read Hierarchical AE characteristings from flags file
+        encode1 = [FLAGS.chest_head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
+        encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
+        encode3 = int(FLAGS.representation_size)
+
+        # Create an autoencoder
+        ae = HierarchicalAE(FLAGS.DoF, np.array(encode1), np.array(encode2), np.array(encode3), sess)
+      
+    else:
+        # Get variables from flags
+        num_hidden = FLAGS.num_hidden_layers
+        ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
+                            for j in xrange(num_hidden)]
+        
+        ae_shape = [FLAGS.DoF] + ae_hidden_shapes + [FLAGS.DoF]
+
+        # Create an autoencoder
+        ae  = FlatAutoEncoder(ae_shape, sess)
+
+        #print('Flat AE was created : ', ae_shape)
+
     start_time = time.time()
 
     # Read the flags
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
     dropout = FLAGS.dropout # (keep probability) value
     learning_rate = FLAGS.pretraining_learning_rate
-    variance = FLAGS.variance_of_noise
+    variance = variance_opt #FLAGS.variance_of_noise
     batch_size = FLAGS.batch_size
     chunk_length = FLAGS.chunk_length
 
@@ -39,30 +63,6 @@ def main_unsupervised(restore, pretrain):
       print('ERROR! Have got negative values in the flags!')
       exit(1)
     
-
-    # Here is a switch for different AE
-    if(FLAGS.Hierarchical):
-    
-      # Read Hierarchical AE characteristings from flags file
-      encode1 = [FLAGS.chest_head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
-      encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
-      encode3 = int(FLAGS.representation_size)
-
-      # Create an autoencoder
-      ae = HierarchicalAE(FLAGS.DoF, np.array(encode1), np.array(encode2), np.array(encode3), sess)
-    
-    else:
-      # Get variables from flags
-      num_hidden = FLAGS.num_hidden_layers
-      ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
-                          for j in xrange(num_hidden)]
-      
-      ae_shape = [FLAGS.DoF] + ae_hidden_shapes + [FLAGS.DoF]
-
-      # Create an autoencoder
-      ae  = FlatAutoEncoder(ae_shape, sess)
-
-      print('Flat AE was created : ', ae_shape)
     
     with tf.variable_scope("Train") as main_scope:
 
@@ -73,23 +73,7 @@ def main_unsupervised(restore, pretrain):
         train_op = ae._train_op
 
         # Create a saver
-        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
-
-        # Get the data
-        data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
-    
-        # Check, if we have enough data
-        if(batch_size > data.train._num_chunks):
-          print('ERROR! Cannot have less train sequences than a batch size!')
-          exit(1)
-        if(batch_size > data.test._num_chunks):
-          print('ERROR! Cannot have less test sequences than a batch size!')
-          exit(1)
-
-        #print('Variations: ', data.train.sigma)
-        #print('Max values: ', max_val)
-
-        reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
+        #saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
 
         # Prepare for making a summary for TensorBoard
 
@@ -112,7 +96,7 @@ def main_unsupervised(restore, pretrain):
         if(pretrain):
           with tf.name_scope("Pretrain"):
 
-            print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
+            #print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
 
             
             shallow_output = ae.process_sequences_shallow(ae._input_, dropout)
@@ -128,8 +112,8 @@ def main_unsupervised(restore, pretrain):
             sess.run(tf.global_variables_initializer())
           
             # Pre - Train only the last and the first layers
-            print("| Training steps| Error    |   Epoch  |")
-            print("|---------------|----------|----------|")
+            '''print("| Training steps| Error    |   Epoch  |")
+            print("|---------------|----------|----------|")'''
 
             pretrain_summary_writer = tf.summary.FileWriter(tr_summary_dir)
             
@@ -138,11 +122,11 @@ def main_unsupervised(restore, pretrain):
 
               loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
               
-              if(step%100 == 0):
+              '''if(step%100 == 0):
                 # Print results of screen
                 output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
                            .format(step,  loss_value, data.train._epochs_completed + 1)
-                print(output)
+                print(output)'''
 
             #Reset the count for the actual training
             data.train._epochs_completed = 0
@@ -157,11 +141,12 @@ def main_unsupervised(restore, pretrain):
           new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir+'/'))
           
         # Train the whole network jointly
-        print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
-        
+        #print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
+
+        '''
         print("")
         print("|  Epoch  | Error   |")
-        print("|-------- |---------|")
+        print("|-------- |---------|")'''
 
 
         for epoch in xrange(FLAGS.training_epochs):
@@ -177,10 +162,10 @@ def main_unsupervised(restore, pretrain):
           train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
           tr_summary_writer.add_summary(train_summary, epoch)
                 
-          # Print results of screen
+          '''# Print results of screen
           output = "| Epoch {0:2}|{1:8.4f} |"\
                          .format(data.train._epochs_completed + 1,  train_error_)
-          print(output)
+          print(output)'''
 
           #Evaluate on the test sequences
           error_sum=0
@@ -200,19 +185,14 @@ def main_unsupervised(restore, pretrain):
                 
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            saver.save(sess, 'FLAGS.model_dir'+'/FlatAe', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.
-    print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
+            #saver.save(sess, 'FLAGS.model_dir'+'/FlatAe', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.
+    #print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
-    print("The training was running for %.3f  min with %.3f min for reading" % (duration, reading_time))
-
-    # Print an output for a specific sequence into a file
-    read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
-    # Print an output for a specific sequence into a file
-    #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
+    print("The training was running for %.3f  min" % (duration))
   
-  return ae 
+  return train_error_, test_error_
 
 def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
    print('\nTake a test sequence from the file',input_seq_file_name)
@@ -265,11 +245,49 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
 
    print('And write an output into the file ' + output_bvh_file_name + '...')
+
+def create_ae(sess):
+   
+
+  return ae
+
+def get_the_data():
+
+  start_time = time.time()
+  
+  # Get the data
+  data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
+    
+  # Check, if we have enough data
+  if(FLAGS.batch_size > data.train._num_chunks):
+    print('ERROR! Cannot have less train sequences than a batch size!')
+    exit(1)
+  if(FLAGS.batch_size > data.test._num_chunks):
+    print('ERROR! Cannot have less test sequences than a batch size!')
+    exit(1)
+
+  reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
+
+  print('Reading of data took ' + str(reading_time) + ' minutes')
+
+  return data, max_val,mean_pose
    
 if __name__ == '__main__':
+
+  data, max_val,mean_pose = get_the_data()
+ 
+      
   restore = False
   pretrain = FLAGS.Pretraining
-  ae = main_unsupervised(restore, pretrain)
+  # Do grid search for the variance fo noise multiplicative factor
+  for var in np.linspace(0.1, 0.4, 7):
+    train_err, test_err = learning(data, restore, pretrain, var)
+    print('For the variance ' + str(var)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+
+   # Print an output for a specific sequence into a file
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
+    # Print an output for a specific sequence into a file
+    #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
 
   #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
      

@@ -286,12 +286,9 @@ class HierarchicalAE(object):
     learning_rate = FLAGS.pretraining_learning_rate
     optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
         
-    print('\nOptimizer was created')
-        
     tvars = tf.trainable_variables()
     grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
     self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
-    print('Training operator was created')
     
   def _w(self, n, suffix=""):
     return self["w_" + suffix]
