@@ -39,20 +39,20 @@ flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 64,
+flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 10,
+flags.DEFINE_integer('pretraining_epochs', 20,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 10, #60 originaly
+flags.DEFINE_integer('training_epochs', 50, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 3, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', True,
+flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
 flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
 
