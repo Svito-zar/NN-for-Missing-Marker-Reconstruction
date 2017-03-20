@@ -304,7 +304,7 @@ class HierarchicalAE(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
     return y
 
-  def single_run(self, input_pl, time_step, just_middle = False):
+  def single_run(self, input_pl, time_step, dropout, just_middle = False):
       """Get the output of the autoencoder
 
       Args:
@@ -315,8 +315,9 @@ class HierarchicalAE(object):
         Tensor of output
       """
       with tf.name_scope("hiererchical_AE_run"):
-        
-        last_output = input_pl
+
+        # First - Apply Dropout
+        last_output = tf.nn.dropout(input_pl, dropout)
         
         #########################            ENCODING                ######################3
 
@@ -366,7 +367,12 @@ class HierarchicalAE(object):
             lower_body_in = tf.concat([first_hidden_layer[3], first_hidden_layer[4]], 1)
 
           
-          ################    Second layer encoding    #################          
+          ################    Second layer encoding    #################
+
+          # Apply Dropout
+          upper_body_in = tf.nn.dropout(upper_body_in, dropout)
+          lower_body_in = tf.nn.dropout(lower_body_in, dropout)
+        
           with tf.variable_scope("Upper_lower_encoding"):
             
             ################    Thirsd layer encoding    #################
@@ -379,6 +385,8 @@ class HierarchicalAE(object):
 
           ################    Third layer encoding    ##################
 
+          # Apply Dropout
+          whole_body_in = tf.nn.dropout(whole_body_in, dropout)
           with tf.variable_scope("Last_hiddeb_layer"):
             representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
 
@@ -388,7 +396,11 @@ class HierarchicalAE(object):
         #########################            DECODING                ######################3
 
         with tf.variable_scope("Decoding"):
-        ################    1st layer decoding    ##################
+            ################    1st layer decoding    ##################
+
+          # Apply Dropout
+          representation = tf.nn.dropout(representation, dropout)
+          
           with tf.variable_scope("Whole_body_decode"):
             whole_body_decode = self._activate(representation , self["w_whole_body_decode"], self["b_whole_body_decode"])
 
@@ -399,7 +411,13 @@ class HierarchicalAE(object):
             lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
 
           with tf.variable_scope("Decode_upper_and_lower"):
+            
             ################    2nd layer decoding    ##################
+
+            # Apply Dropout
+            upper_body_slice  = tf.nn.dropout(upper_body_slice, dropout)
+            lower_body_slice  = tf.nn.dropout(lower_body_slice, dropout)
+          
             upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
             lower_body_decode = self._activate(lower_body_slice, self["w_lower_body_decode"], self["b_lower_body_decode"])
 
@@ -415,11 +433,11 @@ class HierarchicalAE(object):
 
           ################    4rd decoding  layer  ##################
           with tf.variable_scope("Decode_body_parts"):
-            r_arm_decode = self._activate(r_arm_slice, self["w_r_arm_decode"], self["b_r_arm_decode"])
-            l_arm_decode = self._activate(l_arm_slice, self["w_l_arm_decode"], self["b_l_arm_decode"])
-            r_leg_decode = self._activate(r_leg_slice, self["w_r_leg_decode"], self["b_r_leg_decode"])
-            l_leg_decode = self._activate(l_leg_slice, self["w_l_leg_decode"], self["b_l_leg_decode"])
-            spine_decode = self._activate(spine_slice, self["w_spine_decode"], self["b_spine_decode"])
+            r_arm_decode = self._activate(tf.nn.dropout(r_arm_slice, dropout), self["w_r_arm_decode"], self["b_r_arm_decode"])
+            l_arm_decode = self._activate(tf.nn.dropout(l_arm_slice, dropout), self["w_l_arm_decode"], self["b_l_arm_decode"])
+            r_leg_decode = self._activate(tf.nn.dropout(r_leg_slice, dropout), self["w_r_leg_decode"], self["b_r_leg_decode"])
+            l_leg_decode = self._activate(tf.nn.dropout(l_leg_slice, dropout), self["w_l_leg_decode"], self["b_l_leg_decode"])
+            spine_decode = self._activate(tf.nn.dropout(spine_slice, dropout), self["w_spine_decode"], self["b_spine_decode"])
 
           with tf.variable_scope("combine"):
             output = tf.concat([body_decode, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], 1, name='concat')
@@ -443,14 +461,11 @@ class HierarchicalAE(object):
 
     # Initial state of the LSTM memory.
     self._RNN_state = self._initial_state
-            
-    # First - Apply Dropout
-    the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
     # Take batches for every time step and run them through the network
     # Stack all their outputs
     with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-      stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
+      stacked_outputs = tf.stack( [ self.single_run(input_seq_pl[:,time_st,:], time_st, dropout, just_middle) for time_st in range(self.sequence_length) ])
 
     # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 

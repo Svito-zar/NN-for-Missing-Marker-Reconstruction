@@ -113,7 +113,7 @@ class FlatAutoEncoder(object):
     self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
     print('Training operator was created')
 
-  def single_run(self, input_pl, time_step, just_middle = False):
+  def single_run(self, input_pl, time_step, dropout, just_middle = False):
           """Get the output of the autoencoder for a single batch
 
           Args:
@@ -125,10 +125,14 @@ class FlatAutoEncoder(object):
           """
           #print(self._RNN_state)
 
+          # get an input
           last_output = input_pl
-
+          
           # Pass through the network
           for i in xrange(self.num_hidden_layers+1):
+
+            # Apply Dropout
+            last_output = tf.nn.dropout(last_output, dropout)
                 
             if(i==self.__recurrent_layer):
               if time_step > 0: tf.get_variable_scope().reuse_variables()
@@ -171,7 +175,7 @@ class FlatAutoEncoder(object):
           # Take batches for every time step and run them through the network
           # Stack all their outputs
           with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st, just_middle) for time_st in range(self.sequence_length) ])
+            stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 

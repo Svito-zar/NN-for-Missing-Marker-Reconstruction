@@ -137,7 +137,7 @@ def main_unsupervised(restore, pretrain):
 
               loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
               
-              if(step%100 == 0):
+              if(step%5000 == 0):
                 # Print results of screen
                 output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
                            .format(step,  loss_value, data.train._epochs_completed + 1)
@@ -175,31 +175,32 @@ def main_unsupervised(restore, pretrain):
           # Write summary
           train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
           tr_summary_writer.add_summary(train_summary, epoch)
-                
+
           # Print results of screen
           output = "| Epoch {0:2}|{1:8.4f} |"\
                          .format(data.train._epochs_completed + 1,  train_error_)
           print(output)
 
-          #Evaluate on the test sequences
-          error_sum=0
-          for test_batch in range(num_test_batches):
-             feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-             curr_err = sess.run([test_loss], feed_dict=feed_dict)
-             error_sum+= curr_err[0]
-          test_error_ = error_sum/(num_test_batches)
-          test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
-          test_summary_writer.add_summary(test_sum, epoch)
+          if(epoch%3==0 and epoch>30):
+            #Evaluate on the test sequences
+            error_sum=0
+            for test_batch in range(num_test_batches):
+               feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+               curr_err = sess.run([test_loss], feed_dict=feed_dict)
+               error_sum+= curr_err[0]
+            test_error_ = error_sum/(num_test_batches)
+            test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
+            test_summary_writer.add_summary(test_sum, epoch)
 
           # Checkpoints
-          if(epoch%20==0 & epoch>0):
+          if(epoch%250==0 and epoch>0):
               
             # Print an output for a specific sequence into a file
-            write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
+            #write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
                 
             # Saver for the model
             #curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            saver.save(sess, 'FLAGS.model_dir'+'/FlatAe', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.
+            saver.save(sess, 'FLAGS.chkpt_dir', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.
     print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
