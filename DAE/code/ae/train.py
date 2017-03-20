@@ -38,7 +38,11 @@ def main_unsupervised(restore, pretrain):
     if(learning_rate < 0 or dropout < 0 or variance < 0):
       print('ERROR! Have got negative values in the flags!')
       exit(1)
-    
+
+    if(FLAGS.amount_of_subfolders < 2):
+      print('ERROR! We need at least 2 subfolders: one for training and one for testing!')
+      exit(1)
+
 
     # Here is a switch for different AE
     if(FLAGS.Hierarchical):
@@ -138,7 +142,7 @@ def main_unsupervised(restore, pretrain):
 
               loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
               
-              if(step%100 == 0):
+              if(step%2000 == 0):
                 # Print results of screen
                 output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
                            .format(step,  loss_value, data.train._epochs_completed + 1)
@@ -177,10 +181,10 @@ def main_unsupervised(restore, pretrain):
           train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
           tr_summary_writer.add_summary(train_summary, epoch)
                 
-          # Print results of screen
+          """# Print results of screen
           output = "| Epoch {0:2}|{1:8.4f} |"\
                          .format(data.train._epochs_completed + 1,  train_error_)
-          print(output)
+          print(output)"""
 
           #Evaluate on the test sequences
           error_sum=0
@@ -191,6 +195,11 @@ def main_unsupervised(restore, pretrain):
           test_error_ = error_sum/(num_test_batches)
           test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
           test_summary_writer.add_summary(test_sum, epoch)
+
+          # Print results of screen
+          output = "| Epoch {0:2}|{1:8.4f} |"\
+                         .format(data.train._epochs_completed + 1,  test_error_)
+          print(output)
 
           # Checkpoints
           if(epoch%20==0 & epoch>0):

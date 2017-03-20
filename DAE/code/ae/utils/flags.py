@@ -16,11 +16,11 @@ FLAGS = flags.FLAGS
 """  							Fine-tuning Parameters 				"""
 
 # Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 1,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 8,'At which layer we are going to apply recurrency')
 
 #Training characteristics
 flags.DEFINE_float('pretraining_learning_rate', 0.003,
@@ -39,15 +39,15 @@ flags.DEFINE_float('dropout', 0.95, 'Probability to keep the neuron on')
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 64,
+flags.DEFINE_integer('batch_size', 24,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 10,
+flags.DEFINE_integer('pretraining_epochs', 100,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 10, #60 originaly
+flags.DEFINE_integer('training_epochs', 600, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 12, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 
 # Autoencoder Architecture Specific Flags

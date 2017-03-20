@@ -251,7 +251,7 @@ class FlatAutoEncoder(object):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
 
-  def run_shallow(self, input_pl):
+  def run_shallow(self, input_pl, dropout):
       """Get the output of the autoencoder,if it would consist
          only from the first and the last layer
 
@@ -261,10 +261,14 @@ class FlatAutoEncoder(object):
       Returns:
         Tensor of output
       """
+
+      # get an input
+      last_output = input_pl
+      
       with tf.name_scope("shallow_run"):
 
-        #First - Apply Dropout
-        #last_output = tf.nn.dropout(input_pl, dropout)
+        # Apply Dropout
+        last_output = tf.nn.dropout(last_output, dropout)
 
         # Apply first layer of the network
         w = self._w(1)
@@ -292,13 +296,10 @@ class FlatAutoEncoder(object):
 
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
-            
-          # First - Apply Dropout
-          the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
           # Take batches for every time step and run them through the network
           # Stack all their outputs
-          stacked_outputs = tf.stack( [ self.run_shallow(the_whole_sequences[:,time_st,:]) for time_st in range(self.sequence_length) ])
+          stacked_outputs = tf.stack( [ self.run_shallow(input_seq_pl[:,time_st,:], dropout ) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 
