@@ -45,7 +45,6 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
         # Create an autoencoder
         ae  = FlatAutoEncoder(ae_shape, sess, learning_rate, batch_size, dropout, variance)
-
         #print('Flat AE was created : ', ae_shape)
 
     start_time = time.time()
@@ -294,8 +293,8 @@ if __name__ == '__main__':
     lr = lr_factor*initial_lr
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-
-   # Print an output for a specific sequence into a file
+   
+    # Print an output for a specific sequence into a file
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
