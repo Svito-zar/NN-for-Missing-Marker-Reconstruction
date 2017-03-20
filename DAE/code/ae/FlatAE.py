@@ -23,7 +23,7 @@ class FlatAutoEncoder(object):
   _weights_str = "weights{0}"
   _biases_str = "biases{0}"
 
-  def __init__(self, shape, sess):
+  def __init__(self, shape, sess, learning_rate, batch_size, dropout, variance):
     """Autoencoder initializer
 
     Args:
@@ -36,7 +36,7 @@ class FlatAutoEncoder(object):
     self.__recurrent_layer = FLAGS.recurrent_layer 
 
     self.__sequence_length = FLAGS.chunk_length
-    self.__batch_size = FLAGS.batch_size
+    self.__batch_size = batch_size
 
     self.__variables = {}
     self.__sess = sess
@@ -77,17 +77,14 @@ class FlatAutoEncoder(object):
         
       # Get some constants from the flags file
       keep_prob = tf.placeholder(tf.float32) #dropout placeholder
-      dropout = FLAGS.dropout # (keep probability) value
-      variance = FLAGS.variance_of_noise
-      batch_size = FLAGS.batch_size
-      chunk_length = FLAGS.chunk_length
+      chunk_length = self.sequence_length
 
       #Define the network itself
       self._input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, FLAGS.chunk_length, FLAGS.DoF), #FLAGS.batch_size
+                                    shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
                                     name='ae_input_pl')
       self._target_ = tf.placeholder(dtype=tf.float32,
-                                     shape=(None, FLAGS.chunk_length, FLAGS.DoF),
+                                     shape=(None, chunk_length, FLAGS.DoF),
                                      name='ae_target_pl')
 
       # Define output and loss for the training data
@@ -103,15 +100,11 @@ class FlatAutoEncoder(object):
       ##############        DEFINE OPERATIONS       ###############################################
 
     # Define optimizers
-    learning_rate = FLAGS.training_learning_rate
     optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
-        
-    print('Optimizer was created')
         
     tvars = tf.trainable_variables()
     grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
     self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
-    print('Training operator was created')
 
   def single_run(self, input_pl, time_step, dropout, just_middle = False):
           """Get the output of the autoencoder for a single batch

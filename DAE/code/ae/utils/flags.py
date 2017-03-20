@@ -49,10 +49,9 @@ flags.DEFINE_integer('training_epochs', 1000, #60 originaly
 
 flags.DEFINE_integer('amount_of_subfolders', 13, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
-
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', False,
+flags.DEFINE_boolean('Hierarchical', True,
                      'Whether AE is hierarchical')
 flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
 
@@ -87,15 +86,15 @@ flags.DEFINE_integer('representation_size', 20,
 
 flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
-flags.DEFINE_integer('hidden1_units', 65,
+flags.DEFINE_integer('hidden1_units', 330,
                      'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2_units', 30,
+flags.DEFINE_integer('hidden2_units', 110,
                      'Number of units in hidden layer 2.')
-flags.DEFINE_integer('hidden3_units', 20,
+flags.DEFINE_integer('hidden3_units', 40,
                      'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4_units', 30,
+flags.DEFINE_integer('hidden4_units', 110,
                      'Number of units in hidden layer 4.') 
-flags.DEFINE_integer('hidden5_units', 65,
+flags.DEFINE_integer('hidden5_units', 33,
                      'Number of units in hidden layer 5.')
 flags.DEFINE_integer('hidden6_units', 70,
                      'Number of units in hidden layer 6.') 
