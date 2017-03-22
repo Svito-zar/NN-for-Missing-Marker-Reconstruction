@@ -100,7 +100,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
               shallow_loss = loss_reconstruction(shallow_output, ae._target_)/(batch_size*chunk_length)
 
             # create an optimizer
-            shallow_optimizer =  tf.train.RMSPropOptimizer(learning_rate=FLAGS.pretraining_learning_rate)
+            shallow_optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate)
             shallow_trainer = shallow_optimizer.minimize(shallow_loss, global_step=tf.contrib.framework.get_or_create_global_step(), name='Shalow_optimizer')
 
             # Initialize variables
@@ -154,17 +154,17 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                                                 feed_dict=feed_dict)
             train_error_ = loss_value
                                                
-          # Write summary
-          train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
-          tr_summary_writer.add_summary(train_summary, epoch)
-
           '''# Print results of screen
           output = "| Epoch {0:2}|{1:8.4f} |"\
                          .format(data.train._epochs_completed + 1,  train_error_)
           print(output)'''
 
           if(epoch%3==0 and epoch>30):
-            #Evaluate on the test sequences
+            # Write summary
+            train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
+            tr_summary_writer.add_summary(train_summary, epoch)
+            
+     	    #Evaluate on the test sequences
             error_sum=0
             for test_batch in range(num_test_batches):
                feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
@@ -173,6 +173,8 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             test_error_ = error_sum/(num_test_batches)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, epoch)
+
+	    #print('After '+str(epoch) + ' epochs train error is ' + str(train_error))
 
           # Checkpoints
   	  '''        if(epoch%250==0 and epoch>0):
@@ -249,12 +251,12 @@ def create_ae(sess):
 
   return ae
 
-def get_the_data():
+def get_the_data(evaluate):
 
   start_time = time.time()
   
   # Get the data
-  data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders)
+  data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders, evaluate)
     
   # Check, if we have enough data
   if(FLAGS.batch_size > data.train._num_chunks):
@@ -271,8 +273,6 @@ def get_the_data():
   return data, max_val,mean_pose
    
 if __name__ == '__main__':
-
-  data, max_val,mean_pose = get_the_data()
  
   restore = False
   pretrain = FLAGS.Pretraining
@@ -283,31 +283,49 @@ if __name__ == '__main__':
 
   print('Fixed hyper-parameters:\n')
 
-  #print('learning_rate : ' + str(learning_rate))
+  print('learning_rate : ' + str(learning_rate))
   print('batch_size: '+ str(batch_size))
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
 
+  '''
+  evaluate=True
+  data, max_val,mean_pose = get_the_data(evaluate)
   train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
   print('For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
   
+  
   '''
+  
+  # Do grid search
+  evaluate=False
+  data, max_val,mean_pose = get_the_data(evaluate)
   print('\nWe optimize : learning rate\n')
-        
-  # Do grid search for the variance fo noise multiplicative factor
-  initial_lr=0.0001
-  for lr_factor in np.logspace(0, 5, num=7, base=2):
+  initial_lr = 0.0001
+  for lr_factor in np.logspace(0,8, num=9, base=1.4):
     lr = lr_factor*initial_lr
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+  
   '''
+  print('\nWe optimize : dropout rate\n')
+  for dropout in np.linspace(0.7, 0.9, 5):
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
+    print('For the droput ' + str(dropout)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+          
+  print('\nWe optimize : variance rate\n')
+  for variance in np.linspace(0.1, 0.4, 6):
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
+    print('For variance ' + str(variance)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
 
     # Print an output for a specific sequence into a file
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
-
+ 
   #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
      
   # get middle layers for visualization
- # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') """
+ # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') 
+  '''
+

@@ -283,7 +283,7 @@ class HierarchicalAE(object):
       ##############        DEFINE OPERATIONS       ###############################################
 
     # Define optimizers
-    learning_rate = FLAGS.pretraining_learning_rate
+    learning_rate = FLAGS.training_learning_rate
     optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
         
     tvars = tf.trainable_variables()

@@ -162,13 +162,10 @@ class FlatAutoEncoder(object):
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
             
-          # First - Apply Dropout
-          the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
-
           # Take batches for every time step and run them through the network
           # Stack all their outputs
           with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ self.single_run(the_whole_sequences[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length) ])
+            stacked_outputs = tf.stack( [ self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 

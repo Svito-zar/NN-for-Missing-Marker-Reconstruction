@@ -80,7 +80,7 @@ def read_file(fileName):
       
     return shorter_sequence
 
-def read_unlabeled_data(train_dir, amount_of_subfolders):
+def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   class DataSets(object):
     pass
   data_sets = DataSets()
@@ -133,17 +133,14 @@ def read_unlabeled_data(train_dir, amount_of_subfolders):
   #         #########             Get TEST data                  ###########
   
   # go over all folders with the data, exept for the last one
-  print('\nReading test data from the last folder : ' )
-
-  folder_numb = numb_of_folders
-
+  print('\nReading test data from the following folder : ' )
   test_data = np.array([])
-  if(folder_numb<10):
-    curr_dir = train_dir+'/0'+str(folder_numb)
+  if(evaluate):
+    curr_dir = train_dir+'/eval'
   else:
-    curr_dir = train_dir+'/'+str(folder_numb)
+    curr_dir = train_dir+'/dev'
   print(curr_dir)
-  for filename in os.listdir(curr_dir ):
+  for filename in os.listdir(curr_dir):
     curr_sequence = read_file(curr_dir+'/'+filename)
     curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
     # Concatanate curr chunks to all of them
