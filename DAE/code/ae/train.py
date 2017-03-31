@@ -68,7 +68,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         train_op = ae._train_op
 
         # Create a saver
-        #saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
+        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
 
         # Prepare for making a summary for TensorBoard
 
@@ -87,11 +87,16 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         
         test_loss = ae._test_loss
 
-        #DEBUG
+        #restore model, if needed
+        if(restore):
+          new_saver = tf.train.import_meta_graph(FLAGS.chkpt_dir.meta)
+          new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.chkpt_dir+'/'))
+
+        #Pretrain
         if(pretrain):
           with tf.name_scope("Pretrain"):
 
-            #print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
+            print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
 
             
             shallow_output = ae.process_sequences_shallow(ae._input_, dropout)
@@ -117,8 +122,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
               loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
               
-              '''if(step%50000 == 0):
->>>>>>> origin/optimize
+              '''if(step%5000 == 0):
                 # Print results of screen
                 output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
                            .format(step,  loss_value, data.train._epochs_completed + 1)
@@ -130,36 +134,32 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         else:
           # Initialize variables
           sess.run(tf.global_variables_initializer())
-        
-        #restore model, if needed
-        if(restore):
-          new_saver = tf.train.import_meta_graph(FLAGS.model_dir+'/HierAe.meta')
-          new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir+'/'))
           
         # Train the whole network jointly
-        #print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
-
-        '''
-        print("")
+        print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
+        '''print("")
         print("|  Epoch  | Error   |")
         print("|-------- |---------|")'''
 
+        # A few initialization for the early stopping
+        delta = 0.03 # error tolerance for early stopping
+        best_error = 10000
 
         for epoch in xrange(FLAGS.training_epochs):
           for batches in xrange(num_batches):
               
             feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
-            loss_summary, loss_value  = sess.run([ae._train_op, ae._loss],
+            loss_summary, loss_value  = sess.run([ae._train_op, ae._reconstruction_loss],
                                                 feed_dict=feed_dict)
             train_error_ = loss_value
                                                
-          '''# Print results of screen
-          output = "| Epoch {0:2}|{1:8.4f} |"\
+          # Print results of screen
+          '''output = "| Epoch {0:2}|{1:8.4f} |"\
                          .format(data.train._epochs_completed + 1,  train_error_)
           print(output)'''
 
-          if(epoch%3==0 and epoch>30):
+          if(epoch%3==0 ): # and epoch>30
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
             tr_summary_writer.add_summary(train_summary, epoch)
@@ -174,38 +174,45 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
             test_summary_writer.add_summary(test_sum, epoch)
 
-	    #print('After '+str(epoch) + ' epochs train error is ' + str(train_error))
+            # Early stopping
+            if(epoch%5==0 and FLAGS.Early_stopping):
+              new_error = test_error_
+              if((new_error - best_error) / best_error > delta):
+                print('After '+str(epoch) + ' epochs the training started over-fitting ')
+                break
+              if(new_error < best_error):
+                best_error = new_error
 
-          # Checkpoints
-  	  '''        if(epoch%250==0 and epoch>0):
-              
-            # Print an output for a specific sequence into a file
-            #write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconst_back.bvh')
-                
-            # Saver for the model
-            # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            # saver.save(sess, 'FLAGS.chkpt_dir', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.  '''
+                # Saver for the model
+                # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+                saver.save(sess, FLAGS.chkpt_dir, global_step=epoch) # `save` method will call `export_meta_graph` implicitly.  '''
 
     print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The training was running for %.3f  min" % (duration))
+
+    # Print an output for a specific sequence into a file
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/05_07.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier_box.bvh')
   
   return train_error_, test_error_
 
 def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
-   print('\nTake a test sequence from the file',input_seq_file_name)
    with ae.session.graph.as_default():
     sess = ae.session
 
     #                    GET THE DATA
         
     # get input sequnce
+    print('\nRead a test sequence from the file',input_seq_file_name,'...')
     inputSequence = read_file(input_seq_file_name)
 
     # Split it into chunks
+    print('Preprocess...')
     chunks = np.array([inputSequence [i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
+
+    #print(chunks.shape[0], ' chunks')
 
     # Substract the mean pose
     chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
@@ -214,17 +221,23 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     eps=1e-15
     chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
 
+    #print(chunks_normalized.shape[0], ' chunks after normalization')
+
     # Batch those chunks
-    batches = np.array([chunks_normalized[i:i + ae.batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.batch_size + 1, FLAGS.chunking_stride)])
+    batches = np.array([chunks_normalized[i:i + ae.batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.batch_size + 1, ae.batch_size)])
 
     numb_of_batches = batches.shape[0]
+
+    #print(numb_of_batches, ' batches')
 
     #                    RUN THE NETWORK
 
     # pass the batches of chunks through the AE
+    print('Run the network...')
     output_batches= np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
-
+    
     # Unroll it to back to the sequence
+    print('Postprocess...')
     output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
 
     # Convert it back from [-1,1] to original values
@@ -246,10 +259,6 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
    print('And write an output into the file ' + output_bvh_file_name + '...')
 
-def create_ae(sess):
-   
-
-  return ae
 
 def get_the_data(evaluate):
 
@@ -288,7 +297,6 @@ if __name__ == '__main__':
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
 
-  '''
   evaluate=True
   data, max_val,mean_pose = get_the_data(evaluate)
   train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
@@ -307,7 +315,6 @@ if __name__ == '__main__':
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
   
-  '''
   print('\nWe optimize : dropout rate\n')
   for dropout in np.linspace(0.7, 0.9, 5):
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
@@ -318,8 +325,7 @@ if __name__ == '__main__':
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
     print('For variance ' + str(variance)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
 
-    # Print an output for a specific sequence into a file
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/34/34_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier.bvh')
+    
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
  

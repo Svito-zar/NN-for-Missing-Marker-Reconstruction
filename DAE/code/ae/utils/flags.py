@@ -22,7 +22,7 @@ flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into th
 # FLAGS about recurrency
 flags.DEFINE_integer('recurrent_layer', 100,'At which layer we are going to apply recurrency')
 
-flags.DEFINE_float('training_learning_rate', 0.0002,
+flags.DEFINE_float('training_learning_rate', 0.00015,
                    'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -41,16 +41,20 @@ flags.DEFINE_integer('batch_size', 128,
 
 flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 600, #60 originaly
+flags.DEFINE_integer('training_epochs', 500, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', True,
+flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
-flags.DEFINE_boolean('Pretraining', True,' Whether we do pretraining') 
+
+# Flags about training
+flags.DEFINE_boolean('Pretraining',True,' Whether we do pretraining') 
+flags.DEFINE_integer('Weight_decay', 0.02,' Whether we apply weight decay') 
+flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping') 
 
 """ 							HIRERARCHICAL AE 			"""
 
@@ -83,15 +87,15 @@ flags.DEFINE_integer('representation_size', 20,
 
 flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
-flags.DEFINE_integer('hidden1_units', 1250,
+flags.DEFINE_integer('hidden1_units', 400,
                      'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2_units', 125,
+flags.DEFINE_integer('hidden2_units', 70,
                      'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3_units', 10,
                      'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4_units', 125,
+flags.DEFINE_integer('hidden4_units', 70,
                      'Number of units in hidden layer 4.') 
-flags.DEFINE_integer('hidden5_units', 1250,
+flags.DEFINE_integer('hidden5_units', 400,
                      'Number of units in hidden layer 5.')
 flags.DEFINE_integer('hidden6_units', 70,
                      'Number of units in hidden layer 6.') 
@@ -122,7 +126,7 @@ flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
 flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
                     'File for saving the parameters values')
 
-flags.DEFINE_string('summary_dir', home_out('summaries'), 
+flags.DEFINE_string('summary_dir', home_out('summaries_dev'), 
                     'Directory to put the summary data')
 
 flags.DEFINE_string('chkpt_dir', home_out('chkpts'),

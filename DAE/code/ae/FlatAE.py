@@ -41,6 +41,9 @@ class FlatAutoEncoder(object):
     self.__variables = {}
     self.__sess = sess
 
+    if(FLAGS.Weight_decay is not None):
+      print('We apply weight decay')
+
     with tf.variable_scope("AE_Variables"):
 
       ##############        SETUP VARIABLES       ###############################################
@@ -48,19 +51,9 @@ class FlatAutoEncoder(object):
       # Create a variable to track the global step.
       global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
       
-      for i in xrange(self.__num_hidden_layers + 1):
-            # Train weights
-            name_w = self._weights_str.format(i + 1)
-            w_shape = (self.__shape[i], self.__shape[i + 1])
-            a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
-            #w_init = tf.random_uniform(w_shape, -1 * a, a)
-            self[name_w] = tf.get_variable(name_w,
-                            initializer=tf.random_uniform(w_shape, -1 * a, a))
-            # Train biases
-            name_b = self._biases_str.format(i + 1)
-            b_shape = (self.__shape[i + 1],)
-            #b_init = tf.zeros(b_shape)
-            self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
+      for i in xrange(self.__num_hidden_layers + 1): # go over all layers
+
+        self._create_variables(i, FLAGS.Weight_decay)
 
       # Define LSTM cell
       lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
@@ -89,7 +82,10 @@ class FlatAutoEncoder(object):
 
       # Define output and loss for the training data
       output = self.process_sequences(self._input_, dropout) # process batch of sequences
-      self._loss = loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
+
+      self._reconstruction_loss =  loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
+      tf.add_to_collection('losses', self._reconstruction_loss)
+      self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
 
       # Define output and loss for the test data
       self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
@@ -100,7 +96,7 @@ class FlatAutoEncoder(object):
       ##############        DEFINE OPERATIONS       ###############################################
 
     # Define optimizers
-    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+    optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
         
     tvars = tf.trainable_variables()
     grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
@@ -128,7 +124,8 @@ class FlatAutoEncoder(object):
             last_output = tf.nn.dropout(last_output, dropout)
                 
             if(i==self.__recurrent_layer):
-              if time_step > 0: tf.get_variable_scope().reuse_variables()
+              if time_step > 0:
+                tf.get_variable_scope().reuse_variables()
               (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
             w = self._w(i + 1)
@@ -137,7 +134,8 @@ class FlatAutoEncoder(object):
 
           # Maybe apply recurrency at the output layer
           if(self.num_hidden_layers+1==self.__recurrent_layer):
-              if time_step > 0: tf.get_variable_scope().reuse_variables()
+              if time_step > 0:
+                tf.get_variable_scope().reuse_variables()
               (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
           return last_output
@@ -337,4 +335,38 @@ class FlatAutoEncoder(object):
       middle = sess.run(middle_op, feed_dict={input_: currSequence})
         
       # save it into a file
-      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})  
+      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
+
+
+  def _create_variables(self, i, wd):
+    """Helper to create an initialized Variable with weight decay.
+    Note that the Variable is initialized with a truncated normal distribution.
+    A weight decay is added only if one is specified.
+    Args:
+      i: number of hidden layer
+      wd: add L2Loss weight decay multiplied by this float. If None, weight
+          decay is not added for this Variable.
+    Returns:
+      Nothing
+    """
+
+    # dtype = tf.float16 if FLAGS.use_fp16 else tf.float32 - TODO: integrate it into the code
+    
+    # Initialize Train weights
+    w_shape = (self.__shape[i], self.__shape[i + 1])
+    a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+    name_w = self._weights_str.format(i + 1)
+    self[name_w] = tf.get_variable(name_w,
+                              initializer=tf.random_uniform(w_shape, -1 * a, a))
+
+    # Add weight to the loss function for achieving weight decay
+    if wd is not None:
+      weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='weight_'+str(i)+'_loss')
+      tf.add_to_collection('losses', weight_decay)
+
+    
+    # Initialize Train biases
+    name_b = self._biases_str.format(i + 1)
+    b_shape = (self.__shape[i + 1],)
+    self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
+ 

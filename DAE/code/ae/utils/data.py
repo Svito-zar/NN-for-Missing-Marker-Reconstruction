@@ -60,6 +60,7 @@ class DataSetPreTraining(object):
     return self._sequences[batch_numb:batch_numb+self._batch_size:1, :]
 
 def read_file(fileName):
+      
     """
     Reads a file from CMU MoCap dataset in BVH format
     
@@ -98,14 +99,14 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   #         #########             Get TRAIN data                  ###########
   
   # go over all folders with the data, exept for the last one
-  print('\nReading train data : BVH files from ', FLAGS.amount_of_subfolders-1, ' folders : ' )
+  print('\nReading train data : BVH files from ', FLAGS.amount_of_subfolders, ' folders : ' )
 
   if(numb_of_folders>=4):
       numb_of_folders=numb_of_folders+1 # since we skip the 4th one
 
   train_data = np.array([])
   # go over all subfolders with the data putting them all into one list
-  for folder_numb in range(1,numb_of_folders,1):
+  for folder_numb in range(1,numb_of_folders+1,1):
     if(folder_numb==4):
       continue
     if(folder_numb<10):
@@ -174,17 +175,17 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   print("MAximum value in the normalized test dataset : " + str(max_))
   print("Minimum value in the normalized test dataset : " + str(min_))
 
-  VALIDATION_SIZE = FLAGS.validation_sequences
+  #VALIDATION_SIZE = FLAGS.validation_sequences
 
   # Shuffle the data
   perm = np.arange(amount_of_strings)
   np.random.shuffle(perm)
   train_data =  train_data[perm]
 
-  validation_data = train_data[:VALIDATION_SIZE]
+  #validation_data = test_data # TODO: maybe change
 
   data_sets.train = DataSetPreTraining(train_data, FLAGS.batch_size)
-  data_sets.validation = DataSetPreTraining(validation_data, FLAGS.batch_size)
+  #data_sets.validation = DataSetPreTraining(validation_data, FLAGS.batch_size)
   data_sets.test = DataSetPreTraining(test_data, FLAGS.batch_size)
 
   # Assign variance
