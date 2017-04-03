@@ -62,10 +62,13 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     with tf.variable_scope("Train") as main_scope:
 
         ##############        DEFINE  Optimizer and training OPERATOR      ####################################
-        
-        # get an optimizer
 
-        train_op = ae._train_op
+         # Define optimizers
+        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+            
+        tvars = tf.trainable_variables()
+        grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars),   1e12)
+        train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
 
         # Create a saver
         saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
@@ -105,7 +108,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
               shallow_loss = loss_reconstruction(shallow_output, ae._target_)/(batch_size*chunk_length)
 
             # create an optimizer
-            shallow_optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+            shallow_optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
             shallow_trainer = shallow_optimizer.minimize(shallow_loss, global_step=tf.contrib.framework.get_or_create_global_step(), name='Shalow_optimizer')
 
             # Initialize variables
@@ -145,12 +148,14 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         delta = 0.03 # error tolerance for early stopping
         best_error = 10000
 
+  
+
         for epoch in xrange(FLAGS.training_epochs):
           for batches in xrange(num_batches):
               
             feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
-            loss_summary, loss_value  = sess.run([ae._train_op, ae._reconstruction_loss],
+            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss],
                                                 feed_dict=feed_dict)
             train_error_ = loss_value
                                                
@@ -187,7 +192,11 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                 # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                 saver.save(sess, FLAGS.chkpt_dir, global_step=epoch) # `save` method will call `export_meta_graph` implicitly.  '''
 
-    print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_, test_error_))
+    # EValuate test error
+    feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+    train_error_ = sess.run([test_loss], feed_dict=feed_dict)
+
+    print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_[0], test_error_))
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 

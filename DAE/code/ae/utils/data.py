@@ -133,7 +133,6 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
 
   #         #########             Get TEST data                  ###########
   
-  # go over all folders with the data, exept for the last one
   print('\nReading test data from the following folder : ' )
   test_data = np.array([])
   if(evaluate):
@@ -153,11 +152,34 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
 
   test_data = np.array(test_data)
 
+  #         #########             Get Vailidation data                  ###########
+
+  if(evaluate):
+    print('\nReading validation data from the following folder : ' )
+    valid_data = np.array([])
+    curr_dir = train_dir+'/dev'
+    print(curr_dir)
+    for filename in os.listdir(curr_dir):
+      curr_sequence = read_file(curr_dir+'/'+filename)
+      curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
+      # Concatanate curr chunks to all of them
+      valid_data = np.vstack([test_data, curr_chunks]) if valid_data.size else np.array(curr_chunks)
+
+    [amount_of_test_strings, seq_length, DoF] = valid_data.shape
+    
+    print('\n' + str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for validation (early stopping)')
+
+    valid_data = np.array(valid_data)
+
+  else:
+    valid_data = test_data
+
   # Do mean normalization : substract mean pose
   print('\nNormalizing the data ...')
   mean_pose = train_data.mean(axis=(0,1))
   train_data = train_data - mean_pose[np.newaxis,np.newaxis,:]
   test_data = test_data - mean_pose[np.newaxis,np.newaxis,:]
+  valid_data = valid_data - mean_pose[np.newaxis,np.newaxis,:]
 
   # Scales all values in the input_data to be between -1 and 1
   eps=1e-15
@@ -166,6 +188,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   max_val = np.maximum(max_train, max_test)
   train_data =np.divide(train_data,max_val[np.newaxis,np.newaxis,:]+eps)
   test_data =np.divide(test_data,max_val[np.newaxis,np.newaxis,:]+eps)
+  valid_data = np.divide(valid_data,max_val[np.newaxis,np.newaxis,:]+eps)
 
   # Chech the data range
   max_ = test_data.max()
@@ -185,7 +208,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   #validation_data = test_data # TODO: maybe change
 
   data_sets.train = DataSetPreTraining(train_data, FLAGS.batch_size)
-  #data_sets.validation = DataSetPreTraining(validation_data, FLAGS.batch_size)
+  data_sets.validation = DataSetPreTraining(valid_data, FLAGS.batch_size)
   data_sets.test = DataSetPreTraining(test_data, FLAGS.batch_size)
 
   # Assign variance

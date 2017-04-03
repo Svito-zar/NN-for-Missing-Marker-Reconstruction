@@ -274,21 +274,15 @@ class HierarchicalAE(object):
       output = self.process_sequences(self._input_, dropout) # process batch of sequences
       self._loss = loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
 
+      self._reconstruction_loss =  loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
+      tf.add_to_collection('losses', self._reconstruction_loss)
+      self._loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+
       # Define output and loss for the test data
       self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
       with tf.name_scope("eval"):
-        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
-        
+        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)        
 
-      ##############        DEFINE OPERATIONS       ###############################################
-
-    # Define optimizers
-    learning_rate = FLAGS.training_learning_rate
-    optimizer =  tf.train.RMSPropOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
-        
-    tvars = tf.trainable_variables()
-    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
-    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
     
   def _w(self, n, suffix=""):
     return self["w_" + suffix]
