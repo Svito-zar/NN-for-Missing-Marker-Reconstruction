@@ -93,15 +93,6 @@ class FlatAutoEncoder(object):
         self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
         
 
-      ##############        DEFINE OPERATIONS       ###############################################
-
-    # Define optimizers
-    '''optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
-        
-    tvars = tf.trainable_variables()
-    grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),   1e12)
-    self._train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())'''
-
   def single_run(self, input_pl, time_step, dropout, just_middle = False):
           """Get the output of the autoencoder for a single batch
 

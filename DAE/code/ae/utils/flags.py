@@ -39,12 +39,12 @@ flags.DEFINE_integer('validation_sequences', 0,
 flags.DEFINE_integer('batch_size', 128,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 20,
+flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 40, #60 originaly
+flags.DEFINE_integer('training_epochs', 400, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -54,7 +54,7 @@ flags.DEFINE_boolean('Hierarchical', False,
 # Flags about training
 flags.DEFINE_boolean('Pretraining',True,' Whether we do pretraining') 
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
-flags.DEFINE_boolean('Early_stopping',False,' Whether we do early stopping') 
+flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping') 
 
 """ 							HIRERARCHICAL AE 			"""
 

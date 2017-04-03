@@ -145,7 +145,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         print("|-------- |---------|")'''
 
         # A few initialization for the early stopping
-        delta = 0.03 # error tolerance for early stopping
+        delta = 0.05 # error tolerance for early stopping
         best_error = 10000
 
   
@@ -181,7 +181,14 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
             # Early stopping
             if(epoch%5==0 and FLAGS.Early_stopping):
-              new_error = test_error_
+              #Evaluate on the validation sequences
+              num_valid_batches = int(data.validation._num_chunks/batch_size)
+              error_sum=0
+              for test_batch in range(num_test_batches):
+                 feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+                 curr_err = sess.run([test_loss], feed_dict=feed_dict)
+                 error_sum+= curr_err[0]
+              new_error = error_sum/(num_test_batches)
               if((new_error - best_error) / best_error > delta):
                 print('After '+str(epoch) + ' epochs the training started over-fitting ')
                 break
