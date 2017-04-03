@@ -49,6 +49,10 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
     start_time = time.time()
 
+    if(restore and pretrain):
+	print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
+	exit(1)
+
     # Read the flags
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
     chunk_length = FLAGS.chunk_length
@@ -90,10 +94,14 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         
         test_loss = ae._test_loss
 
+          #new_saver = tf.train.import_meta_graph(FLAGS.chkpt_dir+'.meta')
+          #new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.chkpt_dir+'/'))
+
         #restore model, if needed
         if(restore):
-          new_saver = tf.train.import_meta_graph(FLAGS.chkpt_dir.meta)
-          new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.chkpt_dir+'/'))
+          chkpt_file = FLAGS.chkpt_dir+'/chkpt-360'
+          saver.restore(sess, chkpt_file)
+          print("Model restored from the file "+str(chkpt_file) + '.')
 
         #Pretrain
         if(pretrain):
@@ -111,7 +119,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             shallow_optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
             shallow_trainer = shallow_optimizer.minimize(shallow_loss, global_step=tf.contrib.framework.get_or_create_global_step(), name='Shalow_optimizer')
 
-            # Initialize variables
+            # Initialize variables, if we have not loaded them yet
             sess.run(tf.global_variables_initializer())
           
             # Pre - Train only the last and the first layers
@@ -137,6 +145,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         else:
           # Initialize variables
           sess.run(tf.global_variables_initializer())
+
           
         # Train the whole network jointly
         print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
@@ -188,7 +197,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                  feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
                  curr_err = sess.run([test_loss], feed_dict=feed_dict)
                  error_sum+= curr_err[0]
-              new_error = error_sum/(num_test_batches)
+              new_error = error_sum/(num_valid_batches)
               if((new_error - best_error) / best_error > delta):
                 print('After '+str(epoch) + ' epochs the training started over-fitting ')
                 break
@@ -197,13 +206,17 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
                 # Saver for the model
                 # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-                saver.save(sess, FLAGS.chkpt_dir, global_step=epoch) # `save` method will call `export_meta_graph` implicitly.  '''
+                save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=epoch) # `save` method will call `export_meta_graph` implicitly.  '''
+                print("Model saved in file: %s" % save_path)
+                
 
-    # EValuate test error
-    feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-    train_error_ = sess.run([test_loss], feed_dict=feed_dict)
-
-    print("\nFinal train error was %.3f, while evarage test error - %.3f." % ( train_error_[0], test_error_))
+    # EValuate train error
+    error_sum=0
+    for train_batch in range(num_batches):
+        feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+        curr_err = sess.run([test_loss], feed_dict=feed_dict)
+        error_sum+= curr_err[0]
+    train_error_ = error_sum/(num_batches)
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
@@ -312,7 +325,8 @@ if __name__ == '__main__':
   print('batch_size: '+ str(batch_size))
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
-
+  
+  '''
   evaluate=True
   data, max_val,mean_pose = get_the_data(evaluate)
   train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
@@ -325,12 +339,14 @@ if __name__ == '__main__':
   evaluate=False
   data, max_val,mean_pose = get_the_data(evaluate)
   print('\nWe optimize : learning rate\n')
-  initial_lr = 0.0001
-  for lr_factor in np.logspace(0,8, num=9, base=1.4):
+  initial_lr = 0.001
+  for lr_factor in np.logspace(0,3, num=4, base=1.5):
     lr = lr_factor*initial_lr
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-  
+
+  '''
+
   print('\nWe optimize : dropout rate\n')
   for dropout in np.linspace(0.7, 0.9, 5):
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)

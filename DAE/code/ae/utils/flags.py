@@ -22,7 +22,7 @@ flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into th
 # FLAGS about recurrency
 flags.DEFINE_integer('recurrent_layer', 100,'At which layer we are going to apply recurrency')
 
-flags.DEFINE_float('training_learning_rate', 0.00015,
+flags.DEFINE_float('training_learning_rate', 0.0015,
                    'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -31,7 +31,7 @@ flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
 
-flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
@@ -41,14 +41,14 @@ flags.DEFINE_integer('batch_size', 128,
 
 flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 400, #60 originaly
+flags.DEFINE_integer('training_epochs', 600, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 2, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', False,
+flags.DEFINE_boolean('Hierarchical', True,
                      'Whether AE is hierarchical')
 
 # Flags about training
@@ -59,25 +59,25 @@ flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping')
 """ 							HIRERARCHICAL AE 			"""
 
 # First encoding layer characteristics
-flags.DEFINE_integer('chest_head_neurons', 80,
+flags.DEFINE_integer('chest_head_neurons',200,
                      'Number of neurons for representation of the chest in hidden layer 1.')
-flags.DEFINE_integer('right_arm_neurons', 120,
+flags.DEFINE_integer('right_arm_neurons', 300,
                      'Number of neurons for representation of the right arm in hidden layer 1.')
-flags.DEFINE_integer('left_arm_neurons', 120,
+flags.DEFINE_integer('left_arm_neurons', 300,
                      'Number of neurons for representation of the left arm hidden layer 1.')
-flags.DEFINE_integer('right_leg_neurons', 75,
+flags.DEFINE_integer('right_leg_neurons', 200,
                      'Number of neurons for representation of the right leg in hidden layer 1.')
-flags.DEFINE_integer('left_leg_neurons', 75,
+flags.DEFINE_integer('left_leg_neurons', 200,
                      'Number of neurons for representation of the left leg in hidden layer 1.')
  
 # Second encoding layer characteristics
-flags.DEFINE_integer('upper_body_neurons', 60,
+flags.DEFINE_integer('upper_body_neurons', 100,
                      'Number of neurons for representation of the upper body in hidden layer 3.')
-flags.DEFINE_integer('lower_body_neurons', 37,
+flags.DEFINE_integer('lower_body_neurons', 97,
                      'Number of neurons for representation of the lower body in hidden layer 3.')
  
 # Third encoding layer characteristics
-flags.DEFINE_integer('representation_size', 20,
+flags.DEFINE_integer('representation_size', 10,
                      'Number of neurons for representation of the whole body in hidden layer 4.')
 
 
@@ -129,7 +129,7 @@ flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
 flags.DEFINE_string('summary_dir', home_out('summaries_dev'), 
                     'Directory to put the summary data')
 
-flags.DEFINE_string('chkpt_dir', home_out('chkpts'),
+flags.DEFINE_string('chkpt_dir', home_out('chkpts_dev'),
                     'Directory to put the model checkpoints')
 
 # TensorBoard
