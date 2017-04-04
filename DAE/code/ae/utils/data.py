@@ -163,7 +163,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
       curr_sequence = read_file(curr_dir+'/'+filename)
       curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
       # Concatanate curr chunks to all of them
-      valid_data = np.vstack([test_data, curr_chunks]) if valid_data.size else np.array(curr_chunks)
+      valid_data = np.vstack([valid_data, curr_chunks]) if valid_data.size else np.array(curr_chunks)
 
     [amount_of_test_strings, seq_length, DoF] = valid_data.shape
     

@@ -193,7 +193,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
               #Evaluate on the validation sequences
               num_valid_batches = int(data.validation._num_chunks/batch_size)
               error_sum=0
-              for test_batch in range(num_test_batches):
+              for test_batch in range(num_valid_batches):
                  feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
                  curr_err = sess.run([test_loss], feed_dict=feed_dict)
                  error_sum+= curr_err[0]
@@ -326,7 +326,7 @@ if __name__ == '__main__':
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
   
-  '''
+
   evaluate=True
   data, max_val,mean_pose = get_the_data(evaluate)
   train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
@@ -339,13 +339,13 @@ if __name__ == '__main__':
   evaluate=False
   data, max_val,mean_pose = get_the_data(evaluate)
   print('\nWe optimize : learning rate\n')
-  initial_lr = 0.001
-  for lr_factor in np.logspace(0,3, num=4, base=1.5):
+  initial_lr = 0.0003
+  for lr_factor in np.logspace(0,3, num=4, base=2):
     lr = lr_factor*initial_lr
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
 
-  '''
+  
 
   print('\nWe optimize : dropout rate\n')
   for dropout in np.linspace(0.7, 0.9, 5):
