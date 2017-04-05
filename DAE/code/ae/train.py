@@ -15,7 +15,7 @@ from utils.utils import tile_raster_images
 from FlatAE import FlatAutoEncoder    
 from HierarchicalAE import HierarchicalAE
 
-def learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance):
+def learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size):
   """ Unsupervised pretraining of the autoencoder
 
   Returns:
@@ -30,7 +30,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         # Read Hierarchical AE characteristings from flags file
         encode1 = [FLAGS.chest_head_neurons, FLAGS.right_arm_neurons, FLAGS.left_arm_neurons, FLAGS.right_leg_neurons, FLAGS.left_leg_neurons]
         encode2 = [FLAGS.upper_body_neurons, FLAGS.lower_body_neurons]
-        encode3 = int(FLAGS.representation_size)
+        encode3 = middle_layer_size
 
         # Create an autoencoder
         ae = HierarchicalAE(FLAGS.DoF, np.array(encode1), np.array(encode2), np.array(encode3), sess)
@@ -40,12 +40,14 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         num_hidden = FLAGS.num_hidden_layers
         ae_hidden_shapes = [getattr(FLAGS, "hidden{0}_units".format(j + 1))
                             for j in xrange(num_hidden)]
+        #set middle layer size
+        ae_hidden_shapes[2] = middle_layer_size
         
         ae_shape = [FLAGS.DoF] + ae_hidden_shapes + [FLAGS.DoF]
 
         # Create an autoencoder
         ae  = FlatAutoEncoder(ae_shape, sess, learning_rate, batch_size, dropout, variance)
-        #print('Flat AE was created : ', ae_shape)
+        print('Flat AE was created : ', ae_shape)
 
     start_time = time.time()
 
@@ -319,6 +321,7 @@ if __name__ == '__main__':
   batch_size = FLAGS.batch_size
   dropout = FLAGS.dropout # (keep probability) value
   variance = FLAGS.variance_of_noise
+  middle_layer_size = FLAGS.representation_size
 
   print('Fixed hyper-parameters:\n')
 
@@ -327,11 +330,11 @@ if __name__ == '__main__':
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
 
-  '''
+  
 
   evaluate=True
   data, max_val,mean_pose = get_the_data(evaluate)
-  train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
+  train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance,middle_layer_size)
   print('For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
   
   
@@ -340,23 +343,33 @@ if __name__ == '__main__':
   # Do grid search
   evaluate=False
   data, max_val,mean_pose = get_the_data(evaluate)
+  
   print('\nWe optimize : learning rate\n')
   initial_lr = 0.0001
   for lr_factor in np.logspace(0,9, num=10, base=1.8):
     lr = lr_factor*initial_lr
-    train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
+    train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+ 
 
-  '''
+  print('\nWe optimize : middle layer size\n')
+
+  
+  for middle_layer in np.linspace(5, 15, 5):
+    middle_layer_size = int(middle_layer)
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
+    print('For the middle layer size ' + str(middle_layer_size)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+
+  
 
   print('\nWe optimize : dropout rate\n')
   for dropout in np.linspace(0.7, 0.9, 5):
-    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
     print('For the droput ' + str(dropout)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
           
   print('\nWe optimize : variance rate\n')
   for variance in np.linspace(0.1, 0.4, 6):
-    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance)
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
     print('For variance ' + str(variance)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
 
     

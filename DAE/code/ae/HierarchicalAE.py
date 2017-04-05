@@ -112,6 +112,8 @@ class HierarchicalAE(object):
       print('Setting up the variables for Hierarchical Autoencoder...\n')
 
       ######################            Encoding          #############################
+
+      debug=False
       
       # *****************          First layer weights and biases**********
       
@@ -126,8 +128,8 @@ class HierarchicalAE(object):
                                      name=name_w,
                                      trainable=True)
 
-        #DEBUG
-        # print('Next body part name is : ', name_of_part,' Its matrix has a shape : ', w_shape )
+        if(debug):
+          print('Next body part name is : ', name_of_part,' Its matrix has a shape : ', w_shape )
       
         # biases
         name_b = "b_" + name_of_part
@@ -148,8 +150,9 @@ class HierarchicalAE(object):
       b_shape = (self.__encode2[0])
       b_init = tf.zeros(b_shape)
       self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
-      #DEBUG
-      #print('\nNext body part name is : ', name_w , 'It has a shape : ', w_shape )
+
+      if(debug):
+        print('\nNext body part name is : ', name_w , 'It has a shape : ', w_shape )
       
       name_w = "w_lower_body"  
       w_shape = (self.__encode1[3] + self.__encode1[4], self.__encode2[1]) # both legs -> lower body
@@ -162,8 +165,9 @@ class HierarchicalAE(object):
       b_shape = (self.__encode2[1])
       b_init = tf.zeros(b_shape)
       self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
-      #DEBUG
-      #print('Next body part name is : ', name_w , 'It has a shape : ', w_shape )
+
+      if(debug):
+        print('Next body part name is : ', name_w , 'It has a shape : ', w_shape )
 
       #      ****************  Third layer weight and bias   ***************
       
@@ -180,8 +184,8 @@ class HierarchicalAE(object):
       b_init = tf.zeros(b_shape)
       self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
       
-      #DEBUG
-      #print('\nMatrix before the whole body representation has a shape : ', w_shape )
+      if(debug):
+        print('\nMatrix before the whole body representation has a shape : ', w_shape )
         
 
       ######################            Decoding          #############################
