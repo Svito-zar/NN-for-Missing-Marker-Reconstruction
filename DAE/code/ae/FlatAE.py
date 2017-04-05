@@ -355,6 +355,8 @@ class FlatAutoEncoder(object):
       weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='weight_'+str(i)+'_loss')
       tf.add_to_collection('losses', weight_decay)
 
+    # Add the histogram summary
+    tf.summary.histogram(name_w,self[name_w])
     
     # Initialize Train biases
     name_b = self._biases_str.format(i + 1)

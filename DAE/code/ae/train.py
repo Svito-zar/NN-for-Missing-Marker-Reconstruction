@@ -81,7 +81,8 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
         train_error =tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
         test_error =tf.placeholder(dtype=tf.float32, shape=(), name='eval_error')
-        train_summary_op = tf.summary.scalar('Train_reconstruction_error', train_error)
+        tf.summary.scalar('Train_reconstruction_error', train_error)
+        train_summary_op = tf.summary.merge_all()
         test_summary_op =  tf.summary.scalar('Test_reconstr_error',test_error)
 
         tr_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_train')
@@ -173,7 +174,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                          .format(data.train._epochs_completed + 1,  train_error_)
           print(output)'''
 
-          if(epoch%3==0 ): # and epoch>30
+          if(epoch%3==0 and epoch>=30):
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
             tr_summary_writer.add_summary(train_summary, epoch)
@@ -325,7 +326,8 @@ if __name__ == '__main__':
   print('batch_size: '+ str(batch_size))
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
-  
+
+  '''
 
   evaluate=True
   data, max_val,mean_pose = get_the_data(evaluate)
@@ -339,13 +341,13 @@ if __name__ == '__main__':
   evaluate=False
   data, max_val,mean_pose = get_the_data(evaluate)
   print('\nWe optimize : learning rate\n')
-  initial_lr = 0.0003
-  for lr_factor in np.logspace(0,3, num=4, base=2):
+  initial_lr = 0.0001
+  for lr_factor in np.logspace(0,9, num=10, base=1.8):
     lr = lr_factor*initial_lr
     train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance)
     print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
 
-  
+  '''
 
   print('\nWe optimize : dropout rate\n')
   for dropout in np.linspace(0.7, 0.9, 5):
