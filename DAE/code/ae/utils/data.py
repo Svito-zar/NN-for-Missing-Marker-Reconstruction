@@ -165,14 +165,14 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
       # Concatanate curr chunks to all of them
       valid_data = np.vstack([valid_data, curr_chunks]) if valid_data.size else np.array(curr_chunks)
 
-    [amount_of_test_strings, seq_length, DoF] = valid_data.shape
+    [amount_of_valid_strings, seq_length, DoF] = valid_data.shape
     
-    print('\n' + str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for validation (early stopping)')
+    print('\n' + str(amount_of_valid_strings) + ' sequences with length ' + str(seq_length) + ' will be used for validation (early stopping)')
 
     valid_data = np.array(valid_data)
 
   else:
-    valid_data = test_data
+    valid_data = np.copy(test_data)
 
   # Do mean normalization : substract mean pose
   print('\nNormalizing the data ...')

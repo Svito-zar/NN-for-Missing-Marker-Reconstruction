@@ -52,8 +52,8 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     start_time = time.time()
 
     if(restore and pretrain):
-	print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
-	exit(1)
+      print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
+      exit(1)
 
     # Read the flags
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
@@ -83,16 +83,16 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
         train_error =tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
         test_error =tf.placeholder(dtype=tf.float32, shape=(), name='eval_error')
-        tf.summary.scalar('Train_reconstruction_error', train_error)
+        tf.summary.scalar('Train_error', train_error)
         train_summary_op = tf.summary.merge_all()
-        test_summary_op =  tf.summary.scalar('Test_reconstr_error',test_error)
+        test_summary_op =  tf.summary.scalar('Validation_error',test_error)
 
-        tr_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_train')
+        tr_summary_dir = pjoin(FLAGS.summary_dir, 'train')
         tr_summary_writer = tf.summary.FileWriter(tr_summary_dir, graph=tf.get_default_graph())
-        test_summary_dir = pjoin(FLAGS.summary_dir, 'last_layer_test')
+        test_summary_dir = pjoin(FLAGS.summary_dir, 'validation')
         test_summary_writer = tf.summary.FileWriter(test_summary_dir)
 
-        num_batches = int(data.train._num_chunks/data.train._batch_size)
+        num_batches = int(data.train._num_chunks/batch_size)
         num_test_batches = int(data.test._num_chunks/batch_size)
         
         test_loss = ae._test_loss
@@ -159,7 +159,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         # A few initialization for the early stopping
         delta = 0.05 # error tolerance for early stopping
         best_error = 10000
-
+        num_valid_batches = int(data.validation._num_chunks/batch_size)
   
 
         for epoch in xrange(FLAGS.training_epochs):
@@ -181,26 +181,18 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
             tr_summary_writer.add_summary(train_summary, epoch)
             
-     	    #Evaluate on the test sequences
+     	    #Evaluate on the validation sequences
             error_sum=0
-            for test_batch in range(num_test_batches):
-               feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-               curr_err = sess.run([test_loss], feed_dict=feed_dict)
-               error_sum+= curr_err[0]
-            test_error_ = error_sum/(num_test_batches)
-            test_sum = sess.run(test_summary_op, feed_dict={test_error: test_error_})
+            for valid_batch in range(num_valid_batches):
+              feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+              curr_err = sess.run([test_loss], feed_dict=feed_dict)
+              error_sum+= curr_err[0]
+            new_error = error_sum/(num_valid_batches)
+            test_sum = sess.run(test_summary_op, feed_dict={test_error: new_error})
             test_summary_writer.add_summary(test_sum, epoch)
 
             # Early stopping
-            if(epoch%5==0 and FLAGS.Early_stopping):
-              #Evaluate on the validation sequences
-              num_valid_batches = int(data.validation._num_chunks/batch_size)
-              error_sum=0
-              for test_batch in range(num_valid_batches):
-                 feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-                 curr_err = sess.run([test_loss], feed_dict=feed_dict)
-                 error_sum+= curr_err[0]
-              new_error = error_sum/(num_valid_batches)
+            if(epoch%5==0 and FLAGS.Early_stopping):             
               if((new_error - best_error) / best_error > delta):
                 print('After '+str(epoch) + ' epochs the training started over-fitting ')
                 break
@@ -219,14 +211,25 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
         curr_err = sess.run([test_loss], feed_dict=feed_dict)
         error_sum+= curr_err[0]
+    print('We used ',num_batches,' batches of the size ', batch_size, ' for evaluating training, resulting in the total error of ', error_sum)
     train_error_ = error_sum/(num_batches)
+
+    # Evaluate final test error
+    error_sum=0
+    for test_batch in range(num_test_batches):
+      feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
+      curr_err = sess.run([test_loss], feed_dict=feed_dict)
+      error_sum+= curr_err[0]
+    print('We used ',num_test_batches,' batches of the size ', batch_size, ' for evaluating testing, resulting in the total error of ', error_sum)
+    test_error_ = error_sum/(num_test_batches)
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The training was running for %.3f  min" % (duration))
 
     # Print an output for a specific sequence into a file
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/05_07.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_Hier_box.bvh')
+    read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_hier_best_box.bvh')
   
   return train_error_, test_error_
 
@@ -322,39 +325,46 @@ if __name__ == '__main__':
   dropout = FLAGS.dropout # (keep probability) value
   variance = FLAGS.variance_of_noise
   middle_layer_size = FLAGS.representation_size
-
+  weight_decay = FLAGS.Weight_decay
+  
   print('Fixed hyper-parameters:\n')
 
   print('learning_rate : ' + str(learning_rate))
   print('batch_size: '+ str(batch_size))
   print('dropout: ' + str(dropout))
   print('variance of noise added to the data: ' + str(variance))
+  print('middle layer size: ' + str(middle_layer_size))
+  print('Weight decay: ' + str(weight_decay))
 
   
-
+  
   evaluate=True
+
+  if(evaluate):
+    data, max_val,mean_pose = get_the_data(evaluate)
+    train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
+    print('For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+ 
+  else:
+    data, max_val,mean_pose = get_the_data(evaluate)  
+    print('\nWe optimize : learning rate\n')
+    initial_lr = 0.0001
+    for lr_factor in np.logspace(0,7, num=8, base=1.8):
+      lr = lr_factor*initial_lr
+      train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
+      print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+   
+  '''#debug
+  evaluate = False
   data, max_val,mean_pose = get_the_data(evaluate)
-  train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance,middle_layer_size)
-  print('For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-  
-  
+  train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
+  print('With EVALUATE FALSE For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))'''
+
+   
+
   '''
   
-  # Do grid search
-  evaluate=False
-  data, max_val,mean_pose = get_the_data(evaluate)
-  
-  print('\nWe optimize : learning rate\n')
-  initial_lr = 0.0001
-  for lr_factor in np.logspace(0,9, num=10, base=1.8):
-    lr = lr_factor*initial_lr
-    train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
-    print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
- 
-
-  print('\nWe optimize : middle layer size\n')
-
-  
+  print('\nWe optimize : middle layer size\n')  
   for middle_layer in np.linspace(5, 15, 5):
     middle_layer_size = int(middle_layer)
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
