@@ -55,6 +55,10 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
       print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
       exit(1)
 
+    if(pretrain and FLAGS.Layer_wise_Pretraining):
+      print('ERROR! You cannot do 2 pretraining at the same time! Please, chose one of them')
+      exit(1)
+
     # Read the flags
     keep_prob = tf.placeholder(tf.float32) #dropout placeholder
     chunk_length = FLAGS.chunk_length
@@ -70,7 +74,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         ##############        DEFINE  Optimizer and training OPERATOR      ####################################
 
          # Define optimizers
-        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate) # GradientDescentOptimizer
+        optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate) #could be FLAGS.training_learning_rate
             
         tvars = tf.trainable_variables()
         grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars),   1e12)
@@ -106,9 +110,71 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
           saver.restore(sess, chkpt_file)
           print("Model restored from the file "+str(chkpt_file) + '.')
 
-        #Pretrain
+        if(FLAGS.Layer_wise_Pretraining):
+          with tf.name_scope("Layer-wise_pretraining"):
+
+            # create an optimizer
+            pretrain_optimizer =  tf.train.AdamOptimizer(learning_rate=FLAGS.pretraining_learning_rate)
+
+            # Make an array of the trainers for all the layers
+            trainers=[pretrain_optimizer.minimize(loss_reconstruction(ae.run_less_layers(ae._input_, i+1), ae.run_less_layers(ae._input_, i+1, is_target=True)), global_step=tf.contrib.framework.get_or_create_global_step(), name='Layer_wise_optimizer_'+str(i)) for i in xrange(len(ae_shape) - 2)]
+
+            # Initialize all the variables
+            sess.run(tf.global_variables_initializer())
+            
+            for i in xrange(len(ae_shape) - 2):
+              n = i + 1
+              print('Pretrain layer number ', n,' ... ')
+              with tf.variable_scope("layer_{0}".format(n)):
+
+                layer = ae.run_less_layers(ae._input_, n)
+
+                with tf.name_scope("pretraining_loss"):
+                  target_for_loss = ae.run_less_layers(ae._input_, n, is_target=True)
+
+                loss =  loss_reconstruction(layer, target_for_loss)
+                
+                pretrain_trainer = trainers[i] #pretrain_optimizer.minimize(loss, global_step=tf.contrib.framework.get_or_create_global_step(), name='Layer_wise_optimizer')
+
+                ''' if(i==0):
+                  # Initialize variables, if we have not loaded them yet
+                  sess.run(tf.global_variables_initializer())
+
+                else:
+                  sess.run(tf.initialize_variables([pretrain_optimizer.get_slot(loss, name) for name in pretrain_optimizer.get_slot_names()]))'''
+                                                    
+                #guarantee_initialized_variables(sess)
+                #sess.run(tf.initialize_variables([pretrain_optimizer.get_slot(loss, name)
+                #                  
+
+                layer_wise_pretrain_summary_writer = tf.summary.FileWriter(tr_summary_dir)
+                
+                for epoch in xrange(FLAGS.pretraining_epochs):
+                  for batches in xrange(num_batches):
+                    feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
+
+                    loss_summary, loss_value  = sess.run([pretrain_trainer, loss],feed_dict=feed_dict)
+
+                    
+                    
+                  train_summary = sess.run(train_summary_op, feed_dict={train_error: 2}) # random constant just for debug
+                  tr_summary_writer.add_summary(train_summary, epoch +FLAGS.pretraining_epochs*i)
+                  '''
+                    # Print results of screen
+                    output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
+                               .format(step,  loss_value, data.train._epochs_completed + 1)
+                  print(output)'''
+
+            # Copy the trained weights to the fixed matrices and biases
+            ae[ae._weights_str.format(n) + 'fixed'] = ae._w(n)
+            ae[ae._biases_str.format(n) + 'fixed'] = ae._b(n)
+            
+          #Reset the count for the actual training
+          data.train._epochs_completed = 0
+
+        #Pretrain last and first layer
         if(pretrain):
-          with tf.name_scope("Pretrain"):
+          with tf.name_scope("Pretrain_first_and_last_layer"):
 
             print('\nPretrain for', FLAGS.pretraining_epochs, ' epochs...\n')
 
@@ -141,7 +207,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                 output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
                            .format(step,  loss_value, data.train._epochs_completed + 1)
                 print(output)'''
-
+            
             #Reset the count for the actual training
             data.train._epochs_completed = 0
             
@@ -157,7 +223,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         print("|-------- |---------|")'''
 
         # A few initialization for the early stopping
-        delta = 0.05 # error tolerance for early stopping
+        delta = 0.1 # error tolerance for early stopping
         best_error = 10000
         num_valid_batches = int(data.validation._num_chunks/batch_size)
   
@@ -211,7 +277,6 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
         curr_err = sess.run([test_loss], feed_dict=feed_dict)
         error_sum+= curr_err[0]
-    print('We used ',num_batches,' batches of the size ', batch_size, ' for evaluating training, resulting in the total error of ', error_sum)
     train_error_ = error_sum/(num_batches)
 
     # Evaluate final test error
@@ -220,7 +285,6 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
       feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
       curr_err = sess.run([test_loss], feed_dict=feed_dict)
       error_sum+= curr_err[0]
-    print('We used ',num_test_batches,' batches of the size ', batch_size, ' for evaluating testing, resulting in the total error of ', error_sum)
     test_error_ = error_sum/(num_test_batches)
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
@@ -228,7 +292,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     print("The training was running for %.3f  min" % (duration))
 
     # Print an output for a specific sequence into a file
-    read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_hier_best_box.bvh')
   
   return train_error_, test_error_
@@ -294,7 +358,6 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
    print('And write an output into the file ' + output_bvh_file_name + '...')
 
-
 def get_the_data(evaluate):
 
   start_time = time.time()
@@ -338,7 +401,7 @@ if __name__ == '__main__':
 
   
   
-  evaluate=True
+  evaluate=False
 
   if(evaluate):
     data, max_val,mean_pose = get_the_data(evaluate)
@@ -347,25 +410,29 @@ if __name__ == '__main__':
  
   else:
     data, max_val,mean_pose = get_the_data(evaluate)  
-    print('\nWe optimize : learning rate\n')
-    initial_lr = 0.0001
-    for lr_factor in np.logspace(0,7, num=8, base=1.8):
+    print('\nWe optimize : pretraining learning rate\n')
+    initial_lr = 0.00005
+    for lr_factor in np.logspace(0,7, num=8, base=2):
       lr = lr_factor*initial_lr
       train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
       print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
    
-  '''#debug
+  
+  '''
+  #debug
   evaluate = False
   data, max_val,mean_pose = get_the_data(evaluate)
   train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
   print('With EVALUATE FALSE For the learning rate ' + str(learning_rate)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))'''
 
    
-
   '''
+
   
+  evaluate = True
+  data, max_val,mean_pose = get_the_data(evaluate)
   print('\nWe optimize : middle layer size\n')  
-  for middle_layer in np.linspace(5, 15, 5):
+  for middle_layer in np.linspace(70, 140, 8):
     middle_layer_size = int(middle_layer)
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
     print('For the middle layer size ' + str(middle_layer_size)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))

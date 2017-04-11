@@ -341,11 +341,11 @@ class FlatAutoEncoder(object):
       Nothing
     """
 
-    # dtype = tf.float16 if FLAGS.use_fp16 else tf.float32 - TODO: integrate it into the code
+    dtype = tf.float16 if FLAGS.use_fp16 else tf.float32 #- TODO: integrate it into the code
     
     # Initialize Train weights
     w_shape = (self.__shape[i], self.__shape[i + 1])
-    a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
+    a = tf.multiply(2.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
     name_w = self._weights_str.format(i + 1)
     self[name_w] = tf.get_variable(name_w,
                               initializer=tf.random_uniform(w_shape, -1 * a, a))
@@ -362,4 +362,52 @@ class FlatAutoEncoder(object):
     name_b = self._biases_str.format(i + 1)
     b_shape = (self.__shape[i + 1],)
     self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
- 
+
+    if i < self.__num_hidden_layers:
+      # Hidden layer fixed weights (after pretraining before fine tuning)
+      self[name_w + "_fixed"] = tf.get_variable(name=name_w + "_fixed",
+                                                initializer=tf.random_uniform(w_shape, -1 * a, a),
+                                                trainable=False)
+      # Hidden layer fixed biases
+      self[name_b + "_fixed"] = tf.get_variable(name_b+"_fixed", initializer=tf.zeros(b_shape),
+                                                trainable=False)
+
+      # Pretraining output training biases
+      name_b_out = self._biases_str.format(i + 1) + "_out"
+      b_shape = (self.__shape[i],)
+      b_init = tf.zeros(b_shape)
+      self[name_b_out] = tf.get_variable(name=name_b_out, initializer=b_init,
+                                         trainable=True)
+
+  
+  def run_less_layers(self, input_pl, n, is_target=False):
+    """Return net for step n training or target net
+    Args:
+      input_pl:  tensorflow placeholder of AE inputs
+      n:         int specifying pretrain step
+      is_target: bool specifying if required tensor
+                  should be the target tensor
+    Returns:
+      Tensor giving pretraining net or pretraining target
+    """
+    assert n > 0
+    assert n <= self.__num_hidden_layers
+
+    last_output = input_pl[:,0,:] # reduce dimensionality
+    
+    for i in xrange(n - 1):
+      w = self._w(i + 1, "_fixed")
+      b = self._b(i + 1, "_fixed")
+
+      last_output = self._activate(last_output, w, b)
+
+    if is_target:
+      return last_output
+
+    last_output = self._activate(last_output, self._w(n), self._b(n))
+
+    out = self._activate(last_output, self._w(n), self._b(n,"_out"),
+                         transpose_w=True) # TODO: maybe try without symmerty
+    
+    return out
+

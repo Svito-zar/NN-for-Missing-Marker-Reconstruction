@@ -22,7 +22,10 @@ flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into th
 # FLAGS about recurrency
 flags.DEFINE_integer('recurrent_layer', 100,'At which layer we are going to apply recurrency')
 
-flags.DEFINE_float('training_learning_rate', 0.002,
+flags.DEFINE_float('pretraining_learning_rate', 0.005,
+                   'pretraining learning rate.')
+
+flags.DEFINE_float('training_learning_rate', 0.0002,
                    'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -41,7 +44,7 @@ flags.DEFINE_integer('batch_size', 128,
 
 flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 700, #60 originaly
+flags.DEFINE_integer('training_epochs', 1000, #60 originaly
                      "Number of training epochs for pretraining layers")
 
 flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
@@ -52,7 +55,9 @@ flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
 
 # Flags about training
-flags.DEFINE_boolean('Pretraining',True,' Whether we do pretraining') 
+flags.DEFINE_boolean('Pretraining',False,' Whether we do pretraining of the first and the last layers') 
+flags.DEFINE_boolean('Layer_wise_Pretraining',True,' Whether we do layer-wise pretraining') 
+
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
 flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping') 
 
@@ -77,7 +82,7 @@ flags.DEFINE_integer('lower_body_neurons', 62,
                      'Number of neurons for representation of the lower body in hidden layer 3.')
  
 # Third encoding layer characteristics
-flags.DEFINE_integer('representation_size', 100,
+flags.DEFINE_integer('representation_size', 80,
                      'Number of neurons for representation of the whole body in hidden layer 4.')
 
 
@@ -89,11 +94,11 @@ flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
 flags.DEFINE_integer('hidden1_units', 400,
                      'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2_units', 100,
+flags.DEFINE_integer('hidden2_units', 70,
                      'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3_units', 100,
                      'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4_units', 100,
+flags.DEFINE_integer('hidden4_units', 70,
                      'Number of units in hidden layer 4.') 
 flags.DEFINE_integer('hidden5_units', 400,
                      'Number of units in hidden layer 5.')
@@ -129,7 +134,7 @@ flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
 flags.DEFINE_string('summary_dir', home_out('summaries_dev'), 
                     'Directory to put the summary data')
 
-flags.DEFINE_string('chkpt_dir', home_out('chkpts'),
+flags.DEFINE_string('chkpt_dir', home_out('chkpts_dev'),
                     'Directory to put the model checkpoints')
 
 # TensorBoard
