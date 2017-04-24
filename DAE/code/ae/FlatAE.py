@@ -105,14 +105,12 @@ class FlatAutoEncoder(object):
           """
           #print(self._RNN_state)
 
-          # get an input
-          last_output = input_pl
+	  # Apply Dropout
+          last_output = tf.nn.dropout(input_pl, dropout)
           
           # Pass through the network
           for i in xrange(self.num_hidden_layers+1):
 
-            # Apply Dropout
-            last_output = tf.nn.dropout(last_output, dropout)
                 
             if(i==self.__recurrent_layer):
               if time_step > 0:

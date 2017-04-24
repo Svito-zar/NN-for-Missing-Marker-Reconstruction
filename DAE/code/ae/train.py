@@ -114,7 +114,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
           with tf.name_scope("Layer-wise_pretraining"):
 
             # create an optimizer
-            pretrain_optimizer =  tf.train.AdamOptimizer(learning_rate=FLAGS.pretraining_learning_rate)
+            pretrain_optimizer =  tf.train.AdamOptimizer(learning_rate=learning_rate)
 
             # Make an array of the trainers for all the layers
             trainers=[pretrain_optimizer.minimize(loss_reconstruction(ae.run_less_layers(ae._input_, i+1), ae.run_less_layers(ae._input_, i+1, is_target=True)), global_step=tf.contrib.framework.get_or_create_global_step(), name='Layer_wise_optimizer_'+str(i)) for i in xrange(len(ae_shape) - 2)]
@@ -223,7 +223,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         print("|-------- |---------|")'''
 
         # A few initialization for the early stopping
-        delta = 0.1 # error tolerance for early stopping
+        delta = 0.08 # error tolerance for early stopping
         best_error = 10000
         num_valid_batches = int(data.validation._num_chunks/batch_size)
   
@@ -293,7 +293,9 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
     # Print an output for a specific sequence into a file
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_hier_best_box.bvh')
+    #if(evaluate):
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/02/05_10.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_recurrent_with_64_T_4_layer_train.bvh')
   
   return train_error_, test_error_
 
@@ -398,8 +400,6 @@ if __name__ == '__main__':
   print('variance of noise added to the data: ' + str(variance))
   print('middle layer size: ' + str(middle_layer_size))
   print('Weight decay: ' + str(weight_decay))
-
-  
   
   evaluate=False
 
@@ -410,13 +410,18 @@ if __name__ == '__main__':
  
   else:
     data, max_val,mean_pose = get_the_data(evaluate)  
-    print('\nWe optimize : pretraining learning rate\n')
-    initial_lr = 0.00005
-    for lr_factor in np.logspace(0,7, num=8, base=2):
+    print('\nWe optimize : dropout rate\n')
+    for dropout in np.linspace(0.6, 1, 10):
+      train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
+      print('For the droput ' + str(dropout)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
+    
+    '''print('\nWe optimize : pretraining learning rate\n')
+    initial_lr = 0.0000125
+    for lr_factor in np.logspace(0,8, num=9, base=2):
       lr = lr_factor*initial_lr
       train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
       print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-   
+   '''
   
   '''
   #debug
