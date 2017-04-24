@@ -294,7 +294,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     # Print an output for a specific sequence into a file
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
     #if(evaluate):
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
+    read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/02/05_10.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_recurrent_with_64_T_4_layer_train.bvh')
   
   return train_error_, test_error_
@@ -302,6 +302,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
    with ae.session.graph.as_default():
     sess = ae.session
+    chunking_stride = FLAGS.chunking_stride
 
     #                    GET THE DATA
         
@@ -311,9 +312,9 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
     # Split it into chunks
     print('Preprocess...')
-    chunks = np.array([inputSequence [i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, FLAGS.chunking_stride)]) # Split sequence into chunks
+    chunks = np.array([inputSequence [i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, chunking_stride)]) # Split sequence into chunks
 
-    #print(chunks.shape[0], ' chunks')
+    print(chunks.shape[0], ' chunks')
 
     # Substract the mean pose
     chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
@@ -322,27 +323,45 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     eps=1e-15
     chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
 
-    #print(chunks_normalized.shape[0], ' chunks after normalization')
+    print(chunks_normalized.shape[0], ' chunks after normalization')
 
     # Batch those chunks
     batches = np.array([chunks_normalized[i:i + ae.batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.batch_size + 1, ae.batch_size)])
 
     numb_of_batches = batches.shape[0]
 
-    #print(numb_of_batches, ' batches')
+    print(numb_of_batches, ' batches')
 
     #                    RUN THE NETWORK
 
     # pass the batches of chunks through the AE
     print('Run the network...')
-    output_batches= np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+    output_batches=np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+
+    print(output_batches.shape[0], ' output batches')
     
     # Unroll it to back to the sequence
     print('Postprocess...')
-    output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
+    #output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
+
+    output_chunks = output_batches.reshape(-1, output_batches.shape[2], output_batches.shape[3])
+
+    numb_of_chunks = output_chunks.shape[0]
+
+    print(numb_of_chunks, ' output chunks')
+
+    # Map from overlapping windows to non-overlaping
+    # Take first chunk as a whole and the last part of each other chunk
+    output_non_overlaping = output_chunks[0]
+    for i in range(1,numb_of_chunks,1):
+      output_non_overlaping = np.concatenate((output_non_overlaping, output_chunks[i][ae.sequence_length-chunking_stride:ae.sequence_length][:] ), axis=0)
+    output_non_overlaping = np.array(output_non_overlaping)
+
+    # Flaten it into a sequence
+    output_sequence = output_non_overlaping.reshape(-1, output_non_overlaping.shape[-1])
 
     # Convert it back from [-1,1] to original values
-    reconstructed = np.multiply(output_chunks,max_val[np.newaxis,np.newaxis,:]+eps)
+    reconstructed = np.multiply(output_non_overlaping,max_val[np.newaxis,np.newaxis,:]+eps)
     
     # Add the mean pose back
     reconstructed = reconstructed + mean_pose[np.newaxis,np.newaxis,:]
@@ -401,7 +420,7 @@ if __name__ == '__main__':
   print('middle layer size: ' + str(middle_layer_size))
   print('Weight decay: ' + str(weight_decay))
   
-  evaluate=False
+  evaluate=True
 
   if(evaluate):
     data, max_val,mean_pose = get_the_data(evaluate)

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 # Remove old summaries
-rm -r /home/taras/tmp/MoCap/summaries
+rm -r /home/taras/tmp/MoCap/summaries_dev
 
 # Run the program itself
 python code/ae/train.py
 
 # Start the tensorboard with the new data
-tensorboard --logdir=/home/taras/tmp/MoCap/summaries/ --port 6004
+#tensorboard --logdir=/home/taras/tmp/MoCap/summaries_dev/ --port 6005
 
 

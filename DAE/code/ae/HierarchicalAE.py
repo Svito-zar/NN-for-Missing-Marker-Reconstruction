@@ -363,10 +363,6 @@ class HierarchicalAE(object):
 
           
           ################    Second layer encoding    #################
-
-          # Apply Dropout
-          upper_body_in = tf.nn.dropout(upper_body_in, dropout)
-          lower_body_in = tf.nn.dropout(lower_body_in, dropout)
         
           with tf.variable_scope("Upper_lower_encoding"):
             
@@ -380,8 +376,6 @@ class HierarchicalAE(object):
 
           ################    Third layer encoding    ##################
 
-          # Apply Dropout
-          whole_body_in = tf.nn.dropout(whole_body_in, dropout)
           with tf.variable_scope("Last_hiddeb_layer"):
             representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
 
@@ -393,8 +387,6 @@ class HierarchicalAE(object):
         with tf.variable_scope("Decoding"):
             ################    1st layer decoding    ##################
 
-          # Apply Dropout
-          representation = tf.nn.dropout(representation, dropout)
           
           with tf.variable_scope("Whole_body_decode"):
             whole_body_decode = self._activate(representation , self["w_whole_body_decode"], self["b_whole_body_decode"])
@@ -408,10 +400,6 @@ class HierarchicalAE(object):
           with tf.variable_scope("Decode_upper_and_lower"):
             
             ################    2nd layer decoding    ##################
-
-            # Apply Dropout
-            upper_body_slice  = tf.nn.dropout(upper_body_slice, dropout)
-            lower_body_slice  = tf.nn.dropout(lower_body_slice, dropout)
           
             upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
             lower_body_decode = self._activate(lower_body_slice, self["w_lower_body_decode"], self["b_lower_body_decode"])
@@ -428,11 +416,11 @@ class HierarchicalAE(object):
 
           ################    4rd decoding  layer  ##################
           with tf.variable_scope("Decode_body_parts"):
-            r_arm_decode = self._activate(tf.nn.dropout(r_arm_slice, dropout), self["w_r_arm_decode"], self["b_r_arm_decode"])
-            l_arm_decode = self._activate(tf.nn.dropout(l_arm_slice, dropout), self["w_l_arm_decode"], self["b_l_arm_decode"])
-            r_leg_decode = self._activate(tf.nn.dropout(r_leg_slice, dropout), self["w_r_leg_decode"], self["b_r_leg_decode"])
-            l_leg_decode = self._activate(tf.nn.dropout(l_leg_slice, dropout), self["w_l_leg_decode"], self["b_l_leg_decode"])
-            spine_decode = self._activate(tf.nn.dropout(spine_slice, dropout), self["w_spine_decode"], self["b_spine_decode"])
+            r_arm_decode = self._activate(r_arm_slice, self["w_r_arm_decode"], self["b_r_arm_decode"])
+            l_arm_decode = self._activate(l_arm_slice, self["w_l_arm_decode"], self["b_l_arm_decode"])
+            r_leg_decode = self._activate(r_leg_slice, self["w_r_leg_decode"], self["b_r_leg_decode"])
+            l_leg_decode = self._activate(l_leg_slice, self["w_l_leg_decode"], self["b_l_leg_decode"])
+            spine_decode = self._activate(spine_slice, self["w_spine_decode"], self["b_spine_decode"])
 
           with tf.variable_scope("combine"):
             output = tf.concat([body_decode, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], 1, name='concat')

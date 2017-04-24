@@ -16,8 +16,8 @@ FLAGS = flags.FLAGS
 """  							Fine-tuning Parameters 				"""
 
 # Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 16, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 8,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
 flags.DEFINE_integer('recurrent_layer', 100,'At which layer we are going to apply recurrency')
@@ -39,15 +39,15 @@ flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 128,
+flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 200,
+flags.DEFINE_integer('pretraining_epochs', 20,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 1000, #60 originaly
+flags.DEFINE_integer('training_epochs', 20, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
@@ -56,7 +56,7 @@ flags.DEFINE_boolean('Hierarchical', False,
 
 # Flags about training
 flags.DEFINE_boolean('Pretraining',False,' Whether we do pretraining of the first and the last layers') 
-flags.DEFINE_boolean('Layer_wise_Pretraining',True,' Whether we do layer-wise pretraining') 
+flags.DEFINE_boolean('Layer_wise_Pretraining',False,' Whether we do layer-wise pretraining') 
 
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
 flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping') 
