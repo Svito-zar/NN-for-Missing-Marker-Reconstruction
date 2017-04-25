@@ -104,10 +104,9 @@ class FlatAutoEncoder(object):
             Tensor of output
           """
           #print(self._RNN_state)
+	
+	  last_output = input_pl
 
-	  # Apply Dropout
-          last_output = tf.nn.dropout(input_pl, dropout)
-          
           # Pass through the network
           for i in xrange(self.num_hidden_layers+1):
 
