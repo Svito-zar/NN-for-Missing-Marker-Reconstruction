@@ -402,7 +402,7 @@ def get_the_data(evaluate):
 
   reading_time = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
-  print('Reading of data took ' + str(reading_time) + ' minutes')
+  print('Reading of data took ' + str(reading_time) + ' minutes\n')
 
   return data, max_val,mean_pose
    

@@ -56,14 +56,14 @@ class FlatAutoEncoder(object):
         self._create_variables(i, FLAGS.Weight_decay)
 
       # Define LSTM cell
-      lstm_size = self.__shape[self.__recurrent_layer+1] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
-      num_LSTM_layers = 1 # TODO: change
-      def lstm_cell():
+      lstm_size = FLAGS.representation_size
+      num_LSTM_layers = 5 # TODO: change
+      def lstm_cell(size):
           return tf.contrib.rnn.BasicLSTMCell(
-            lstm_size, forget_bias=1.0, state_is_tuple=True)
-      self._RNN_cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
-                 # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
-              
+            size, forget_bias=1.0, state_is_tuple=True)
+      self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
+                  [lstm_cell(lstm_size) for i in range(num_LSTM_layers)], state_is_tuple=True)
+      
       self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
 
       ##############        DEFINE THE NETWORK LOSS       ###############################################
@@ -108,24 +108,13 @@ class FlatAutoEncoder(object):
 	  last_output = input_pl
 
           # Pass through the network
-          for i in xrange(self.num_hidden_layers+1):
+          if time_step > 0:
+            tf.get_variable_scope().reuse_variables()
+          (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
-                
-            if(i!=self.__recurrent_layer):
-              w = self._w(i + 1)
-              b = self._b(i + 1)
-              last_output = self._activate(last_output, w, b)
-
-            else:
-              if time_step > 0:
-                tf.get_variable_scope().reuse_variables()
-              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
-
-          # Maybe apply recurrency at the output layer
-          if(self.num_hidden_layers+1==self.__recurrent_layer):
-              if time_step > 0:
-                tf.get_variable_scope().reuse_variables()
-              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+          w = self._w(self.num_hidden_layers + 1)
+          b = self._b(self.num_hidden_layers + 1)
+          last_output = self._activate(last_output, w, b)
 
           return last_output
 
