@@ -173,7 +173,7 @@ class HierarchicalAE(object):
       
       name_w = "w_whole_body"
         
-      w_shape = (self.__encode2[0]+self.__encode2[1] + self._body_channels, int(self.__encode3))
+      w_shape = (self.__encode2[0]+self.__encode2[1], int(self.__encode3))
       a = tf.multiply(4.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
       w_init = tf.random_uniform(w_shape, -1 * a, a)
       self[name_w] = tf.Variable(w_init,
@@ -247,7 +247,7 @@ class HierarchicalAE(object):
         self[name_b] = tf.Variable(b_init, trainable=True, name=name_b)
 
       # Define LSTM cell
-      lstm_size = self.__shape[self.__recurrent_layer] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
+      lstm_size = FLAGS.representation_size
       num_LSTM_layers = 1 # TODO: change
       def lstm_cell():
           return tf.contrib.rnn.BasicLSTMCell(
@@ -276,8 +276,7 @@ class HierarchicalAE(object):
 
       # Define output and loss for the training data
       output = self.process_sequences(self._input_, dropout) # process batch of sequences
-      self._loss = loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
-
+      
       self._reconstruction_loss =  loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
       tf.add_to_collection('losses', self._reconstruction_loss)
       self._loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
@@ -311,119 +310,118 @@ class HierarchicalAE(object):
       """
       with tf.name_scope("hiererchical_AE_run"):
 
-        # First - Apply Dropout
-        last_output = tf.nn.dropout(input_pl, dropout)
+        #print(time_step)
+
+        last_output = input_pl
         
         #########################            ENCODING                ######################3
 
         #Extract the part of the data, which belongs to each body part
-        # This part is format specific. And hardcoded!
+        # This part is format specific. And HARDCODED!
         # The data for the structure of the MoCap dataset (in BVH format) is in the file BVH_fierarchy in the root folder of my Dropbox folder
-        with tf.variable_scope("Encoding"):
+        indices = [ [ [elem, index] for index in range(0,18,1) ] for elem in range(self.__batch_size)]
+        spine = tf.gather_nd(last_output, indices, name=None) # chest and head
           
-          with tf.variable_scope("Body_part_extraction"):
-            
-            indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__batch_size)]
-            body_in = tf.gather_nd(last_output, indices, name=None) # changes the whole body
-            
-            indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__batch_size)]
-            spine = tf.gather_nd(last_output, indices, name=None) # chest and head
-        
-            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__batch_size)]
-            r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
+        indices = [ [ [elem, index] for index in range(3,6,1) ] + [ [elem, index] for index in range(18,60,1) ]  for elem in range(self.__batch_size)]
+        r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
 
-            indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__batch_size)]
-            l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
+        indices = [ [ [elem, index] for index in range(3,6,1) ] + [ [elem, index] for index in range(60,102,1) ]  for elem in range(self.__batch_size)]
+        l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
 
-            indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__batch_size)]
-            r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
+        indices = [ [ [elem, index] for index in range(102,114,1) ] for elem in range(self.__batch_size)]
+        r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
 
-            indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__batch_size)]
-            l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
+        indices = [ [ [elem, index] for index in range(114,126,1) ] for elem in range(self.__batch_size)]
+        l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
 
-            hierarchical_input = [spine, r_Arm, l_Arm, r_Leg, l_Leg]
+        hierarchical_input = [spine, r_Arm, l_Arm, r_Leg, l_Leg]
           
-          # Then pass through the network
+        # Then pass through the network
 
-          ################    First layer encoding    #################
+        ################    First layer encoding    #################
 
-          with tf.variable_scope("Body_part_encoding"):
+        #with tf.variable_scope("Body_part_encoding"):
             
-            first_hidden_layer = []
-            for bp_id in range(len(self.__encode1)): # bp_id - body part ID
-              name_of_body_part = self._body_part_names[bp_id]
-              first_hidden_layer.append(self._activate(hierarchical_input[bp_id], self["w_"+name_of_body_part], self["b_"+name_of_body_part]))
+        first_hidden_layer = []
+        for bp_id in range(len(self.__encode1)): # bp_id - body part ID
+          name_of_body_part = self._body_part_names[bp_id]
+          first_hidden_layer.append(self._activate(hierarchical_input[bp_id], self["w_"+name_of_body_part], self["b_"+name_of_body_part]))
 
 
-          with tf.variable_scope("Upper_lower_concat"):
+        #with tf.variable_scope("Upper_lower_concat"):
             
             # Combine the outputs
-            upper_body_in = tf.concat([first_hidden_layer[0], first_hidden_layer[1], first_hidden_layer[2]], 1)
-            lower_body_in = tf.concat([first_hidden_layer[3], first_hidden_layer[4]], 1)
+        upper_body_in = tf.concat([first_hidden_layer[0], first_hidden_layer[1], first_hidden_layer[2]], 1)
+        lower_body_in = tf.concat([first_hidden_layer[3], first_hidden_layer[4]], 1)
 
           
-          ################    Second layer encoding    #################
+        ################    Second layer encoding    #################
         
-          with tf.variable_scope("Upper_lower_encoding"):
+        #with tf.variable_scope("Upper_lower_encoding"):
             
-            ################    Thirsd layer encoding    #################
-            upper_body_out = self._activate(upper_body_in, self["w_upper_body"], self["b_upper_body"])
-            lower_body_out = self._activate(lower_body_in, self["w_lower_body"], self["b_lower_body"])
+        ################    Thirsd layer encoding    #################
+        upper_body_out = self._activate(upper_body_in, self["w_upper_body"], self["b_upper_body"])
+        lower_body_out = self._activate(lower_body_in, self["w_lower_body"], self["b_lower_body"])
           
-          with tf.variable_scope("Whole_body_concat"):
-            # Concatanate
-            whole_body_in = tf.concat([body_in, upper_body_out, lower_body_out],1,name = 'whole_body_in')
+        #with tf.variable_scope("Whole_body_concat"):
+        # Concatanate
+        whole_body_in = tf.concat([upper_body_out, lower_body_out],1,name = 'whole_body_in')
 
-          ################    Third layer encoding    ##################
+        ################    Third layer encoding    ##################
 
-          with tf.variable_scope("Last_hiddeb_layer"):
-            representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
+        #with tf.variable_scope("Last_hiddeb_layer"):
+        representation = self._activate(whole_body_in, self["w_whole_body"], self["b_whole_body"])
 
-          if(just_middle):
-            return representation
+        # Use LSTM
+        if time_step > 0:
+          tf.get_variable_scope().reuse_variables()
+        (representation, self._RNN_state) = self._RNN_cell(representation, self._RNN_state)
+
+        if(just_middle):
+          return representation
 
         #########################            DECODING                ######################3
 
-        with tf.variable_scope("Decoding"):
+        #with tf.variable_scope("Decoding"):
             ################    1st layer decoding    ##################
 
           
-          with tf.variable_scope("Whole_body_decode"):
-            whole_body_decode = self._activate(representation , self["w_whole_body_decode"], self["b_whole_body_decode"])
+        #with tf.variable_scope("Whole_body_decode"):
+        whole_body_decode = self._activate(representation , self["w_whole_body_decode"], self["b_whole_body_decode"])
 
-          # Slice it back into 3 parts : upper, lower body and the bits, which are affection the whole body
-          with tf.variable_scope("Slice_into_upper_and_lower"):
-            body_decode = tf.slice(whole_body_decode, [0,0], [self.__batch_size,self._body_channels], name = 'body_decode')
-            upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__batch_size,FLAGS.upper_body_neurons], name = 'upper_body_slice')
-            lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
+        # Slice it back into 3 parts : upper, lower body and the bits, which are affection the whole body
+        #with tf.variable_scope("Slice_into_upper_and_lower"):
+        body_decode = tf.slice(whole_body_decode, [0,0], [self.__batch_size,self._body_channels], name = 'body_decode')
+        upper_body_slice = tf.slice(whole_body_decode, [0,self._body_channels], [self.__batch_size,FLAGS.upper_body_neurons], name = 'upper_body_slice')
+        lower_body_slice = tf.slice(whole_body_decode, [0,self._body_channels+FLAGS.upper_body_neurons], [self.__batch_size,FLAGS.lower_body_neurons], name = 'lower_body_slice')
 
-          with tf.variable_scope("Decode_upper_and_lower"):
+        #with tf.variable_scope("Decode_upper_and_lower"):
             
-            ################    2nd layer decoding    ##################
+        ################    2nd layer decoding    ##################
           
-            upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
-            lower_body_decode = self._activate(lower_body_slice, self["w_lower_body_decode"], self["b_lower_body_decode"])
+        upper_body_decode = self._activate(upper_body_slice, self["w_upper_body_decode"], self["b_upper_body_decode"])
+        lower_body_decode = self._activate(lower_body_slice, self["w_lower_body_decode"], self["b_lower_body_decode"])
 
 
-          # Slice it back to the body parts
-          with tf.variable_scope("Slice_into_body_parts"):
-            spine_slice = tf.slice(upper_body_decode,[0,0],[self.__batch_size, self.__encode1[0]], name = 'spine_decode_slice')
-            r_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]],[self.__batch_size, self.__encode1[1]])
-            l_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]+self.__encode1[1]],[self.__batch_size, self.__encode1[2]])
-            r_leg_slice = tf.slice(lower_body_decode,[0,0],[self.__batch_size, self.__encode1[3]])
-            l_leg_slice = tf.slice(lower_body_decode,[0,self.__encode1[3]],[self.__batch_size, self.__encode1[4]])
+        # Slice it back to the body parts
+        # with tf.variable_scope("Slice_into_body_parts"):
+        spine_slice = tf.slice(upper_body_decode,[0,0],[self.__batch_size, self.__encode1[0]], name = 'spine_decode_slice')
+        r_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]],[self.__batch_size, self.__encode1[1]])
+        l_arm_slice = tf.slice(upper_body_decode,[0,self.__encode1[0]+self.__encode1[1]],[self.__batch_size, self.__encode1[2]])
+        r_leg_slice = tf.slice(lower_body_decode,[0,0],[self.__batch_size, self.__encode1[3]])
+        l_leg_slice = tf.slice(lower_body_decode,[0,self.__encode1[3]],[self.__batch_size, self.__encode1[4]])
             
 
-          ################    4rd decoding  layer  ##################
-          with tf.variable_scope("Decode_body_parts"):
-            r_arm_decode = self._activate(r_arm_slice, self["w_r_arm_decode"], self["b_r_arm_decode"])
-            l_arm_decode = self._activate(l_arm_slice, self["w_l_arm_decode"], self["b_l_arm_decode"])
-            r_leg_decode = self._activate(r_leg_slice, self["w_r_leg_decode"], self["b_r_leg_decode"])
-            l_leg_decode = self._activate(l_leg_slice, self["w_l_leg_decode"], self["b_l_leg_decode"])
-            spine_decode = self._activate(spine_slice, self["w_spine_decode"], self["b_spine_decode"])
+        ################    4rd decoding  layer  ##################
+        #  with tf.variable_scope("Decode_body_parts"):
+        r_arm_decode = self._activate(r_arm_slice, self["w_r_arm_decode"], self["b_r_arm_decode"])
+        l_arm_decode = self._activate(l_arm_slice, self["w_l_arm_decode"], self["b_l_arm_decode"])
+        r_leg_decode = self._activate(r_leg_slice, self["w_r_leg_decode"], self["b_r_leg_decode"])
+        l_leg_decode = self._activate(l_leg_slice, self["w_l_leg_decode"], self["b_l_leg_decode"])
+        spine_decode = self._activate(spine_slice, self["w_spine_decode"], self["b_spine_decode"])
 
-          with tf.variable_scope("combine"):
-            output = tf.concat([body_decode, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], 1, name='concat')
+        #  with tf.variable_scope("combine"):
+        output = tf.concat([spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode], 1, name='concat')
 
       return output
 
@@ -465,22 +463,20 @@ class HierarchicalAE(object):
         
         with tf.variable_scope("Shalow_Encoding"):
             with tf.variable_scope("Extract_Body_parts"):
-              indices = [ [ [elem, index] for index in range(3) ] for elem in range(self.__batch_size)]
-              body_in = tf.gather_nd(last_output, indices, name=None) # changes the whole body
               
-              indices = [ [ [elem, index] for index in range(3,21,1) ] for elem in range(self.__batch_size)]
+              indices = [ [ [elem, index] for index in range(0,18,1) ] for elem in range(self.__batch_size)]
               spine = tf.gather_nd(last_output, indices, name=None) # chest and head
           
-              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(21,63,1) ]  for elem in range(self.__batch_size)]
+              indices = [ [ [elem, index] for index in range(3,6,1) ] + [ [elem, index] for index in range(18,60,1) ]  for elem in range(self.__batch_size)]
               r_Arm = tf.gather_nd(last_output, indices, name=None) # right arm
 
-              indices = [ [ [elem, index] for index in range(6,9,1) ] + [ [elem, index] for index in range(63,105,1) ]  for elem in range(self.__batch_size)]
+              indices = [ [ [elem, index] for index in range(3,6,1) ] + [ [elem, index] for index in range(60,102,1) ]  for elem in range(self.__batch_size)]
               l_Arm = tf.gather_nd(last_output, indices, name=None) # left arm
 
-              indices = [ [ [elem, index] for index in range(105,117,1) ] for elem in range(self.__batch_size)]
+              indices = [ [ [elem, index] for index in range(102,114,1) ] for elem in range(self.__batch_size)]
               r_Leg = tf.gather_nd(last_output, indices, name=None) # right leg
 
-              indices = [ [ [elem, index] for index in range(117,129,1) ] for elem in range(self.__batch_size)]
+              indices = [ [ [elem, index] for index in range(114,126,1) ] for elem in range(self.__batch_size)]
               l_Leg = tf.gather_nd(last_output, indices, name=None) # left leg
 
               hierarchical_input = [spine, r_Arm, l_Arm, r_Leg, l_Leg]
@@ -503,7 +499,7 @@ class HierarchicalAE(object):
               spine_decode = self._activate(spine_repres, self["w_spine_decode"], self["b_spine_decode"])
 
             with tf.variable_scope("concatanate"):
-              output = tf.concat([body_in, spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode],1, name='concat')
+              output = tf.concat([spine_decode, r_arm_decode, l_arm_decode,r_leg_decode,l_leg_decode],1, name='concat')
               
       return output
 
@@ -522,12 +518,8 @@ class HierarchicalAE(object):
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
             
-          # First - Apply Dropout
-          the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
-
-          # Take batches for every time step and run them through the network
           # Stack all their outputs
-          stacked_outputs = tf.stack( [ self.single_run_shallow(the_whole_sequences[:,time_st,:]) for time_st in range(self.sequence_length) ])
+          stacked_outputs = tf.stack( [ self.single_run_shallow(input_seq_pl[:,time_st,:]) for time_st in range(self.sequence_length) ])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 

@@ -294,7 +294,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     # Print an output for a specific sequence into a file
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
     #if(evaluate):
-    read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
+    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
     #read_process_write_bvh_file(ae, FLAGS.data_dir+'/02/05_10.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_recurrent_with_64_T_4_layer_train.bvh')
   
   return train_error_, test_error_
@@ -308,13 +308,18 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
         
     # get input sequnce
     print('\nRead a test sequence from the file',input_seq_file_name,'...')
-    inputSequence = read_file(input_seq_file_name)
+    inputSequence = read_file(input_seq_file_name, True)
+
+    global_coordinates = inputSequence[:,:6]
+    print(global_coordinates.shape)
+    local_coordinates = inputSequence[:,6:]
+    print(local_coordinates.shape)
 
     # Split it into chunks
     print('Preprocess...')
-    chunks = np.array([inputSequence [i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, chunking_stride)]) # Split sequence into chunks
+    chunks = np.array([local_coordinates[i:i + ae.sequence_length, :] for i in xrange(0, len(inputSequence )-ae.sequence_length + 1, chunking_stride)]) # Split sequence into chunks
 
-    print(chunks.shape[0], ' chunks')
+    #print(chunks.shape[0], ' chunks')
 
     # Substract the mean pose
     chunks_minus_mean = chunks - mean_pose[np.newaxis,np.newaxis,:]
@@ -323,14 +328,14 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     eps=1e-15
     chunks_normalized =np.divide(chunks_minus_mean,max_val[np.newaxis,np.newaxis,:]+eps)
 
-    print(chunks_normalized.shape[0], ' chunks after normalization')
+    #print(chunks_normalized.shape[0], ' chunks after normalization')
 
     # Batch those chunks
     batches = np.array([chunks_normalized[i:i + ae.batch_size, :] for i in xrange(0, len(chunks_normalized)-ae.batch_size + 1, ae.batch_size)])
 
     numb_of_batches = batches.shape[0]
 
-    print(numb_of_batches, ' batches')
+    #print(numb_of_batches, ' batches')
 
     #                    RUN THE NETWORK
 
@@ -338,7 +343,7 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     print('Run the network...')
     output_batches=np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
 
-    print(output_batches.shape[0], ' output batches')
+    #print(output_batches.shape[0], ' output batches')
     
     # Unroll it to back to the sequence
     print('Postprocess...')
@@ -348,7 +353,7 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
     numb_of_chunks = output_chunks.shape[0]
 
-    print(numb_of_chunks, ' output chunks')
+    #print(numb_of_chunks, ' output chunks')
 
     # Map from overlapping windows to non-overlaping
     # Take first chunk as a whole and the last part of each other chunk
@@ -368,12 +373,13 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
     #Unroll batches into the sequence
     reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
+    numb_of_frames = reconstructed.shape[0]
 
-    numb_of_chunks = reconstructed.shape[0]
+    # Try to nulify global coordinates
+    global_coordinates= [[0 for i in range(FLAGS.global_DoF)] for j in range(numb_of_frames)]
 
-    # Include rotations as well
-    rotations = np.array( [  [0,0,0] for time_st  in range(numb_of_chunks)] ) #in range(ae.__sequence_length) for snippet
-    reconstructed = np.concatenate((reconstructed[:,0:3],rotations,reconstructed[:,3:]), axis=1)
+    # Include global coordinates as well
+    reconstructed = np.concatenate((global_coordinates[0:numb_of_frames],reconstructed), axis=1)
     
     np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
 
@@ -429,18 +435,13 @@ if __name__ == '__main__':
  
   else:
     data, max_val,mean_pose = get_the_data(evaluate)  
-    print('\nWe optimize : dropout rate\n')
-    for dropout in np.linspace(0.6, 1, 10):
-      train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
-      print('For the droput ' + str(dropout)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-    
-    '''print('\nWe optimize : pretraining learning rate\n')
+    print('\nWe optimize : pretraining learning rate\n')
     initial_lr = 0.0000125
     for lr_factor in np.logspace(0,8, num=9, base=2):
       lr = lr_factor*initial_lr
       train_err, test_err = learning(data, restore, pretrain, lr, batch_size, dropout,variance, middle_layer_size)
       print('For the learning rate ' + str(lr)+' the final train error was '+str(train_err)+' and test error was '+str(test_err))
-   '''
+   
   
   '''
   #debug

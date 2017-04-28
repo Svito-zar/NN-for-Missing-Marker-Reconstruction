@@ -59,7 +59,7 @@ class DataSetPreTraining(object):
       self._index_in_epoch = self._batch_size
     return self._sequences[batch_numb:batch_numb+self._batch_size:1, :]
 
-def read_file(fileName):
+def read_file(fileName, test=False):
       
     """
     Reads a file from CMU MoCap dataset in BVH format
@@ -76,10 +76,13 @@ def read_file(fileName):
     reader.read();
     sequence = np.array(reader.channels) # use 3d coordinates
 
-    # Ignore global rotation TODO: this has to be changed for the new data format
-    shorter_sequence  = np.concatenate((sequence[:,0:3], sequence[:,6:]), axis=1)
-      
-    return shorter_sequence
+    if(test==False):
+      # Ignore global rotation TODO: this has to be changed for the new data format
+      shorter_sequence  = sequence[:,6:]
+      return shorter_sequence
+
+    else:
+      return sequence
 
 def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   class DataSets(object):

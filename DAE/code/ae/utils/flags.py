@@ -16,16 +16,14 @@ FLAGS = flags.FLAGS
 """  							Fine-tuning Parameters 				"""
 
 # Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 16, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 8,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 100,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 3,'At which layer we are going to apply recurrency')
 
-flags.DEFINE_float('pretraining_learning_rate', 0.005,
-                   'pretraining learning rate.')
 
-flags.DEFINE_float('training_learning_rate', 0.0002,
+flags.DEFINE_float('training_learning_rate', 0.00005,
                    'training learning rate.')
 
 flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
@@ -34,7 +32,7 @@ flags.DEFINE_float('variance_of_noise', 0.25, 'Coefficient to be multiplyied on 
 # Constants
 flags.DEFINE_integer('seed', 12345, 'Random seed')
 
-flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 1, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
@@ -42,20 +40,20 @@ flags.DEFINE_integer('validation_sequences', 0,
 flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 20,
+flags.DEFINE_integer('pretraining_epochs', 250,
                      "Number of training epochs for pretraining layers")
-flags.DEFINE_integer('training_epochs', 20, #60 originaly
+flags.DEFINE_integer('training_epochs', 1000, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 1, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
+flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
 
 # Autoencoder Architecture Specific Flags
-flags.DEFINE_integer('DoF', 129, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', False,
+flags.DEFINE_integer('DoF', 126, 'Dimensionality of the single frame')
+flags.DEFINE_boolean('Hierarchical', True,
                      'Whether AE is hierarchical')
 
 # Flags about training
-flags.DEFINE_boolean('Pretraining',False,' Whether we do pretraining of the first and the last layers') 
+flags.DEFINE_boolean('Pretraining',True,' Whether we do pretraining of the first and the last layers') 
 flags.DEFINE_boolean('Layer_wise_Pretraining',False,' Whether we do layer-wise pretraining') 
 
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
@@ -78,7 +76,7 @@ flags.DEFINE_integer('left_leg_neurons', 120,
 # Second encoding layer characteristics
 flags.DEFINE_integer('upper_body_neurons', 75,
                      'Number of neurons for representation of the upper body in hidden layer 3.')
-flags.DEFINE_integer('lower_body_neurons', 62,
+flags.DEFINE_integer('lower_body_neurons', 65,
                      'Number of neurons for representation of the lower body in hidden layer 3.')
  
 # Third encoding layer characteristics
@@ -92,6 +90,11 @@ flags.DEFINE_integer('representation_size', 80,
 
 flags.DEFINE_integer("num_hidden_layers",5, "Number of hidden layers")
 
+flags.DEFINE_integer('global_DoF', 6,
+                     'Number of degrees of freedom for the global rotation and translation') 
+flags.DEFINE_integer('global_represantation', 3,
+                     'Number of neurons for the represantation of global') 
+
 flags.DEFINE_integer('hidden1_units', 400,
                      'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2_units', 70,
@@ -104,6 +107,8 @@ flags.DEFINE_integer('hidden5_units', 400,
                      'Number of units in hidden layer 5.')
 flags.DEFINE_integer('hidden6_units', 70,
                      'Number of units in hidden layer 6.') 
+
+
 
 
 
