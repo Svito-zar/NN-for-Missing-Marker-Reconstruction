@@ -91,6 +91,11 @@ class FlatAutoEncoder(object):
       self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
       with tf.name_scope("eval"):
         self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
+
+
+      #Define the network run
+      self._middle_run = self.process_sequences(self._input_, 1, True) 
+
         
 
   def single_run(self, input_pl, time_step, dropout, just_middle = False):
@@ -107,10 +112,19 @@ class FlatAutoEncoder(object):
 	
 	  last_output = input_pl
 
-          # Pass through the network
-          for i in xrange(self.num_hidden_layers+1):
+	  
+          if(~just_middle): # if not middle layer
+            numb_layers = self.__num_hidden_layers+1
+          else:
+            numb_layers = FLAGS.middle_layer
 
-                
+          if(time_step==0):
+            print('Middle : ', just_middle )
+
+          # Pass through the network
+          for i in xrange(numb_layers):
+
+            
             if(i!=self.__recurrent_layer):
               w = self._w(i + 1)
               b = self._b(i + 1)
@@ -127,6 +141,8 @@ class FlatAutoEncoder(object):
                 tf.get_variable_scope().reuse_variables()
               (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
+          #print('Time_Step ', time_step,' : ', last_output)
+          
           return last_output
 
   def process_sequences(self, input_seq_pl, dropout, just_middle = False):
@@ -140,11 +156,6 @@ class FlatAutoEncoder(object):
           Returns:
             Tensor of output
           """
-
-          if(~just_middle): # if not middle layer
-            numb_layers = self.__num_hidden_layers+1
-          else:
-            numb_layers = FLAGS.middle_layer
 
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
@@ -289,44 +300,6 @@ class FlatAutoEncoder(object):
           
           return output
 
-  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
-    """ Writing a middle layer into the matlab file
-
-    Args:
-      ae:                     ae, middle layer of which we want to save
-      input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
-      output_seq_file_name:   name of the file in which we will write a middle layer of the AE
-      name:                   name of the  'trial' for these sequence
-    Returns:
-      nothing
-    """
-    print('\nExtracting middle layer for a test sequence...')
-    
-    with self.__sess.graph.as_default():
-       
-      sess = self.__sess
-      
-      # get input sequnce
-      currSequence = read_file(input_seq_file_name)
-
-      # define tensors
-      input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, FLAGS.DoF),
-                                    name='ae_input_pl')
-      # Define the size of current input sequence
-      self.__curr_batch_size = sess.run(tf.shape(input_ )[0], feed_dict={input_ : currSequence})
-
-      # Define on an operator
-      middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout
-        
-      # for each snippet in a sequence
-      # pass through the network untill the middle layer
-      middle = sess.run(middle_op, feed_dict={input_: currSequence})
-        
-      # save it into a file
-      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
-
-
   def _create_variables(self, i, wd):
     """Helper to create an initialized Variable with weight decay.
     Note that the Variable is initialized with a truncated normal distribution.
@@ -408,4 +381,38 @@ class FlatAutoEncoder(object):
                          transpose_w=True) # TODO: maybe try without symmerty
     
     return out
+
+  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
+    """ Writing a middle layer into the matlab file
+
+    Args:
+      ae:                     ae, middle layer of which we want to save
+      input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
+      output_seq_file_name:   name of the file in which we will write a middle layer of the AE
+      name:                   name of the  'trial' for these sequence
+    Returns:
+      nothing
+    """
+    print('\nExtracting middle layer for a test sequence...')
+    
+    with self.__sess.graph.as_default():
+       
+      sess = self.__sess
+      
+      # get input sequnce
+      currSequence = read_file(input_seq_file_name)
+
+      # define tensors
+      input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(None, FLAGS.DoF),
+                                    name='ae_input_pl')
+      # Define on an operator
+      middle_op = self.process_sequences(input_ , 1, just_middle = True) # 1 means that we have no dropout
+        
+      # for each snippet in a sequence
+      # pass through the network untill the middle layer
+      middle = sess.run(middle_op, feed_dict={input_: currSequence})
+        
+      # save it into a file
+      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
 

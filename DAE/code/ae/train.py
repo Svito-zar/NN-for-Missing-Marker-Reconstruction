@@ -91,10 +91,9 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
         train_summary_op = tf.summary.merge_all()
         test_summary_op =  tf.summary.scalar('Validation_error',test_error)
 
-        tr_summary_dir = pjoin(FLAGS.summary_dir, 'train')
-        tr_summary_writer = tf.summary.FileWriter(tr_summary_dir, graph=tf.get_default_graph())
-        test_summary_dir = pjoin(FLAGS.summary_dir, 'validation')
-        test_summary_writer = tf.summary.FileWriter(test_summary_dir)
+        summary_dir = pjoin(FLAGS.summary_dir, 'Reconstruction')
+        summary_writer = tf.summary.FileWriter(summary_dir, graph=tf.get_default_graph())
+
 
         num_batches = int(data.train._num_chunks/batch_size)
         num_test_batches = int(data.test._num_chunks/batch_size)
@@ -158,7 +157,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                     
                     
                   train_summary = sess.run(train_summary_op, feed_dict={train_error: 2}) # random constant just for debug
-                  tr_summary_writer.add_summary(train_summary, epoch +FLAGS.pretraining_epochs*i)
+                  summary_writer.add_summary(train_summary, epoch +FLAGS.pretraining_epochs*i)
                   '''
                     # Print results of screen
                     output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
@@ -245,7 +244,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
           if(epoch%3==0 and epoch>=30):
             # Write summary
             train_summary = sess.run(train_summary_op, feed_dict={train_error: train_error_}) # provide a value for a tensor with a train value
-            tr_summary_writer.add_summary(train_summary, epoch)
+            summary_writer.add_summary(train_summary, epoch)
             
      	    #Evaluate on the validation sequences
             error_sum=0
@@ -255,7 +254,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
               error_sum+= curr_err[0]
             new_error = error_sum/(num_valid_batches)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: new_error})
-            test_summary_writer.add_summary(test_sum, epoch)
+            summary_writer.add_summary(test_sum, epoch)
 
             # Early stopping
             if(epoch%5==0 and FLAGS.Early_stopping):             
@@ -289,17 +288,31 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
+
     print("The training was running for %.3f  min" % (duration))
 
-    # Print an output for a specific sequence into a file
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/dev/16_02.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_eval_box.bvh')
-    #if(evaluate):
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/eval/14_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_flat_no_Recurrency_test.bvh')
-    #read_process_write_bvh_file(ae, FLAGS.data_dir+'/02/05_10.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_recurrent_with_64_T_4_layer_train.bvh')
+    # Do visualization of the middle layer
+    walking = process_bvh_file(ae,'/home/taras/storage_original/data(daz)/06/06_01.bvh' , max_val, mean_pose, True)
+    boxing = process_bvh_file(ae, '/home/taras/storage_original/data(daz)/14/14_01.bvh', max_val, mean_pose, True)
+
+    #DEBUG
+    print(walking.shape)
+
+    '''print('And write an output into the file ' + output_bvh_file_name + '...')
+    np.savetxt(output_bvh_file_name, walking, fmt='%.5f', delimiter=' ')'''
+
+    np.savetxt(FLAGS.data_dir+'/reconstr.bvh', walking, fmt='%.5f', delimiter=' ')
+
+    sio.savemat(FLAGS.data_dir+'/walking', {'trialId':'walking', 'spikes':np.transpose(walking)})
+
+    sio.savemat(FLAGS.data_dir+'/boxing', {'trialId':'boxing', 'spikes':np.transpose(boxing)})
+
+    print('And write ', FLAGS.middle_layer,' layers into the file')
+   
   
   return train_error_, test_error_
 
-def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, output_bvh_file_name):
+def process_bvh_file(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
    with ae.session.graph.as_default():
     sess = ae.session
     chunking_stride = FLAGS.chunking_stride
@@ -311,9 +324,7 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     inputSequence = read_file(input_seq_file_name, True)
 
     global_coordinates = inputSequence[:,:6]
-    print(global_coordinates.shape)
     local_coordinates = inputSequence[:,6:]
-    print(local_coordinates.shape)
 
     # Split it into chunks
     print('Preprocess...')
@@ -335,25 +346,32 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
 
     numb_of_batches = batches.shape[0]
 
-    #print(numb_of_batches, ' batches')
+    #print(numb_of_batches, ' input batches')
 
+    
     #                    RUN THE NETWORK
 
     # pass the batches of chunks through the AE
     print('Run the network...')
-    output_batches=np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
-
-    #print(output_batches.shape[0], ' output batches')
+    if(extract_middle_layer):
+      print('But only untill the middle layer')
+      output_batches = np.array( [ sess.run(ae._middle_run , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+    else:
+      output_batches = np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+  
+    #print(' output batches: ', output_batches, )
     
     # Unroll it to back to the sequence
     print('Postprocess...')
     #output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
 
+    print(output_batches.shape)
+
     output_chunks = output_batches.reshape(-1, output_batches.shape[2], output_batches.shape[3])
 
     numb_of_chunks = output_chunks.shape[0]
 
-    #print(numb_of_chunks, ' output chunks')
+    print(output_chunks.shape)
 
     # Map from overlapping windows to non-overlaping
     # Take first chunk as a whole and the last part of each other chunk
@@ -362,8 +380,15 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
       output_non_overlaping = np.concatenate((output_non_overlaping, output_chunks[i][ae.sequence_length-chunking_stride:ae.sequence_length][:] ), axis=0)
     output_non_overlaping = np.array(output_non_overlaping)
 
+    print(output_non_overlaping.shape)
+
     # Flaten it into a sequence
     output_sequence = output_non_overlaping.reshape(-1, output_non_overlaping.shape[-1])
+
+    print(output_sequence.shape)
+
+    if(extract_middle_layer):
+      return output_sequence
 
     # Convert it back from [-1,1] to original values
     reconstructed = np.multiply(output_non_overlaping,max_val[np.newaxis,np.newaxis,:]+eps)
@@ -376,14 +401,12 @@ def read_process_write_bvh_file(ae,input_seq_file_name, max_val, mean_pose, outp
     numb_of_frames = reconstructed.shape[0]
 
     # Try to nulify global coordinates
-    global_coordinates= [[0 for i in range(FLAGS.global_DoF)] for j in range(numb_of_frames)]
+    # global_coordinates= [[0 for i in range(FLAGS.global_DoF)] for j in range(numb_of_frames)]
 
     # Include global coordinates as well
     reconstructed = np.concatenate((global_coordinates[0:numb_of_frames],reconstructed), axis=1)
     
-    np.savetxt(output_bvh_file_name, reconstructed , fmt='%.5f', delimiter=' ')
-
-   print('And write an output into the file ' + output_bvh_file_name + '...')
+    return reconstructed
 
 def get_the_data(evaluate):
 
@@ -414,7 +437,10 @@ if __name__ == '__main__':
   batch_size = FLAGS.batch_size
   dropout = FLAGS.dropout # (keep probability) value
   variance = FLAGS.variance_of_noise
-  middle_layer_size = FLAGS.representation_size
+  if(FLAGS.Hierarchical):
+    middle_layer_size = FLAGS.representation_size
+  else:
+    middle_layer_size = FLAGS.hidden3_units
   weight_decay = FLAGS.Weight_decay
   
   print('Fixed hyper-parameters:\n')
@@ -426,7 +452,7 @@ if __name__ == '__main__':
   print('middle layer size: ' + str(middle_layer_size))
   print('Weight decay: ' + str(weight_decay))
   
-  evaluate=True
+  evaluate=False
 
   if(evaluate):
     data, max_val,mean_pose = get_the_data(evaluate)
@@ -478,8 +504,7 @@ if __name__ == '__main__':
     # Print an output for a specific sequence into a file
     #write_bvh_file(ae, FLAGS.data_dir+'/25/25_01.bvh', max_val, mean_pose,  FLAGS.data_dir+'/reconstr_train.bvh')
  
-  #ae.write_middle_layer(FLAGS.data_dir+'/37/37_01.bvh', FLAGS.data_dir+'/middle_layer.bvh', 'Name')
-     
+  #
   # get middle layers for visualization
  # aewrite_middle_layer(ae, FLAGS.data_dir+'/14/14_01.bvh', FLAGS.data_dir+'/Boxing_middle_layer.txt', 'Boxing') 
   '''
