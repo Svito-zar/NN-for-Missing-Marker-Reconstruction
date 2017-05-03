@@ -84,14 +84,13 @@ def read_file(fileName, test=False):
     else:
       return sequence
 
-def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
+def read_unlabeled_data(train_dir, evaluate):
   class DataSets(object):
     pass
   data_sets = DataSets()
 
   # Get constants from the file
-  train_dir = FLAGS.data_dir
-  numb_of_folders=FLAGS.amount_of_subfolders
+  data_dir = FLAGS.data_dir
   chunk_length =FLAGS.chunk_length
   stride = FLAGS.chunking_stride
 
@@ -102,26 +101,16 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   #         #########             Get TRAIN data                  ###########
   
   # go over all folders with the data, exept for the last one
-  print('\nReading train data : BVH files from ', FLAGS.amount_of_subfolders, ' folders : ' )
-
-  if(numb_of_folders>=4):
-      numb_of_folders=numb_of_folders+1 # since we skip the 4th one
+  print('\nReading train data from the following folder ... ' )
 
   train_data = np.array([])
-  # go over all subfolders with the data putting them all into one list
-  for folder_numb in range(1,numb_of_folders+1,1):
-    if(folder_numb==4):
-      continue
-    if(folder_numb<10):
-      curr_dir = train_dir+'/0'+str(folder_numb)
-    else:
-      curr_dir = train_dir+'/'+str(folder_numb)
-    print(curr_dir)
-    for filename in os.listdir(curr_dir ):
-      curr_sequence = read_file(curr_dir+'/'+filename)
-      curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
-      # Concatanate curr chunks to all of them
-      train_data = np.vstack([train_data, curr_chunks]) if train_data.size else np.array(curr_chunks)
+  curr_dir = data_dir+'/train'
+  print(curr_dir)
+  for filename in os.listdir(curr_dir ):
+    curr_sequence = read_file(curr_dir+'/'+filename)
+    curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in xrange(0, len(curr_sequence)-chunk_length, stride)]) # Split sequence into chunks
+    # Concatanate curr chunks to all of them
+    train_data = np.vstack([train_data, curr_chunks]) if train_data.size else np.array(curr_chunks)
       
   [amount_of_strings, seq_length, DoF] = train_data.shape
 
@@ -139,9 +128,9 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   print('\nReading test data from the following folder : ' )
   test_data = np.array([])
   if(evaluate):
-    curr_dir = train_dir+'/eval'
+    curr_dir = data_dir+'/eval'
   else:
-    curr_dir = train_dir+'/dev'
+    curr_dir = data_dir+'/dev'
   print(curr_dir)
   for filename in os.listdir(curr_dir):
     curr_sequence = read_file(curr_dir+'/'+filename)
@@ -160,7 +149,7 @@ def read_unlabeled_data(train_dir, amount_of_subfolders, evaluate):
   if(evaluate):
     print('\nReading validation data from the following folder : ' )
     valid_data = np.array([])
-    curr_dir = train_dir+'/dev'
+    curr_dir = data_dir+'/dev'
     print(curr_dir)
     for filename in os.listdir(curr_dir):
       curr_sequence = read_file(curr_dir+'/'+filename)

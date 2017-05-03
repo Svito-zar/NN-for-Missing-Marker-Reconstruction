@@ -20,7 +20,7 @@ flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will
 flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 
 # FLAGS about recurrency
-flags.DEFINE_integer('recurrent_layer', 3,'At which layer we are going to apply recurrency')
+flags.DEFINE_integer('recurrent_layer', 5,'At which layer we are going to apply recurrency')
 
 
 flags.DEFINE_float('training_learning_rate', 0.00005,
@@ -37,24 +37,22 @@ flags.DEFINE_float('dropout', 1, 'Probability to keep the neuron on')
 flags.DEFINE_integer('validation_sequences', 0,
                      'Amount of the validation sequences. Each with the length from flag "chunk_length"')
 
-flags.DEFINE_integer('batch_size', 16,
+flags.DEFINE_integer('batch_size', 8,
                      'Size of the mini batch')
 
-flags.DEFINE_integer('pretraining_epochs', 250,
+flags.DEFINE_integer('pretraining_epochs', 200,
                      "Number of training epochs for pretraining layers")
 flags.DEFINE_integer('training_epochs', 1000, #60 originaly
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_integer('amount_of_subfolders', 5, 'Amount of subfolders in the folder with the CMU MoCap dataset') # should be much more
-
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('DoF', 126, 'Dimensionality of the single frame')
-flags.DEFINE_boolean('Hierarchical', True,
+flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
 
 # Flags about training
-flags.DEFINE_boolean('Pretraining',True,' Whether we do pretraining of the first and the last layers') 
-flags.DEFINE_boolean('Layer_wise_Pretraining',False,' Whether we do layer-wise pretraining') 
+flags.DEFINE_boolean('Pretraining',False,' Whether we do pretraining of the first and the last layers') 
+flags.DEFINE_boolean('Layer_wise_Pretraining',True,' Whether we do layer-wise pretraining') 
 
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
 flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping') 
@@ -95,20 +93,18 @@ flags.DEFINE_integer('global_DoF', 6,
 flags.DEFINE_integer('global_represantation', 3,
                      'Number of neurons for the represantation of global') 
 
-flags.DEFINE_integer('hidden1_units', 400,
+flags.DEFINE_integer('hidden1_units', 100,
                      'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2_units', 70,
+flags.DEFINE_integer('hidden2_units', 100,
                      'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3_units', 100,
                      'Number of units in hidden layer 3.')
-flags.DEFINE_integer('hidden4_units', 70,
+flags.DEFINE_integer('hidden4_units', 100,
                      'Number of units in hidden layer 4.') 
-flags.DEFINE_integer('hidden5_units', 400,
+flags.DEFINE_integer('hidden5_units', 100,
                      'Number of units in hidden layer 5.')
-flags.DEFINE_integer('hidden6_units', 70,
+flags.DEFINE_integer('hidden6_units', 100,
                      'Number of units in hidden layer 6.') 
-
-
 
 
 
@@ -127,6 +123,7 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 flags.DEFINE_string('data_dir','/home/taras/storage/data(daz)',
+#    /home/taras/simple_split
 #flags.DEFINE_string('data_dir','/storage/taras/CMU',
                     'Directory to put the training data.')
 

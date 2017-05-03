@@ -282,6 +282,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
       feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
       curr_err = sess.run([ae._loss], feed_dict=feed_dict)
       error_sum+= curr_err[0]
+      print(curr_err)
     test_error_ = error_sum/(num_test_batches)
 
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
@@ -289,27 +290,32 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
     print("The training was running for %.3f  min" % (duration))
 
+    '''
     ########################                              EXTRACT MIDDLE LAYER
 
     # Do visualization of the middle layer
     sit_stand = process_bvh_file(ae,'/home/taras/storage_original/data(daz)/13/13_01.bvh' , max_val, mean_pose, True)
     new_sit_stand = np.add( np.transpose(sit_stand), 1)
     sio.savemat(FLAGS.data_dir+'/walking', {'trialId':'walking', 'spikes':new_sit_stand})
+    print('And write ', FLAGS.middle_layer,' layers into the file')
 
     boxing = process_bvh_file(ae, '/home/taras/storage_original/data(daz)/14/14_01.bvh', max_val, mean_pose, True)
     new_boxing = np.add( np.transpose(boxing), 1)
     sio.savemat(FLAGS.data_dir+'/boxing', {'trialId':'boxing', 'spikes':new_boxing})
+    print('And write ', FLAGS.middle_layer,' layers into the file')
 
     #DEBUG
     #np.savetxt(FLAGS.data_dir+'/reconstr.bvh', sit_stand , fmt='%.5f', delimiter=' ')
     #print(walking.shape)
 
-    '''print('And write an output into the file ' + output_bvh_file_name + '...')
-    np.savetxt(output_bvh_file_name, walking, fmt='%.5f', delimiter=' ')'''
-    
-   
+    '''
 
-    print('And write ', FLAGS.middle_layer,' layers into the file')
+    boxing = process_bvh_file(ae, '/home/taras/storage_original/data(daz)/14/14_01.bvh', max_val, mean_pose)
+    output_bvh_file_name = FLAGS.data_dir+'/reconstr_recurr_flat_1_layer.bvh'
+    np.savetxt(output_bvh_file_name, boxing, fmt='%.5f', delimiter=' ')
+
+    print('And write an output into the file ' + output_bvh_file_name + '...')
+    
    
   
   return train_error_, test_error_
@@ -356,7 +362,6 @@ def process_bvh_file(ae,input_seq_file_name, max_val, mean_pose, extract_middle_
     # pass the batches of chunks through the AE
     print('Run the network...')
     if(extract_middle_layer):
-      middle_run=ae.process_sequences(ae._input_, 1, True) 
       print('But only untill the middle layer')
       output_batches = np.array( [ sess.run(ae._middle_layer  , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
     else:
@@ -368,13 +373,13 @@ def process_bvh_file(ae,input_seq_file_name, max_val, mean_pose, extract_middle_
     print('Postprocess...')
     #output_chunks = output_batches.reshape(-1, output_batches.shape[-1])
 
-    print(output_batches.shape)
+    #print(output_batches.shape)
 
     output_chunks = output_batches.reshape(-1, output_batches.shape[2], output_batches.shape[3])
 
     numb_of_chunks = output_chunks.shape[0]
 
-    print(output_chunks.shape)
+    #print(output_chunks.shape)
 
     # Map from overlapping windows to non-overlaping
     # Take first chunk as a whole and the last part of each other chunk
@@ -383,12 +388,12 @@ def process_bvh_file(ae,input_seq_file_name, max_val, mean_pose, extract_middle_
       output_non_overlaping = np.concatenate((output_non_overlaping, output_chunks[i][ae.sequence_length-chunking_stride:ae.sequence_length][:] ), axis=0)
     output_non_overlaping = np.array(output_non_overlaping)
 
-    print(output_non_overlaping.shape)
+    #print(output_non_overlaping.shape)
 
     # Flaten it into a sequence
     output_sequence = output_non_overlaping.reshape(-1, output_non_overlaping.shape[-1])
 
-    print(output_sequence.shape)
+    #print(output_sequence.shape)
 
     if(extract_middle_layer):
       return output_sequence
@@ -416,7 +421,7 @@ def get_the_data(evaluate):
   start_time = time.time()
   
   # Get the data
-  data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, FLAGS.amount_of_subfolders, evaluate)
+  data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir, evaluate)
     
   # Check, if we have enough data
   if(FLAGS.batch_size > data.train._num_chunks):
@@ -455,8 +460,7 @@ if __name__ == '__main__':
   print('middle layer size: ' + str(middle_layer_size))
   print('Weight decay: ' + str(weight_decay))
   
-  evaluate=False
-
+  evaluate=True
   if(evaluate):
     data, max_val,mean_pose = get_the_data(evaluate)
     train_err, test_err = learning(data, restore, pretrain, learning_rate, batch_size, dropout,variance, middle_layer_size)
