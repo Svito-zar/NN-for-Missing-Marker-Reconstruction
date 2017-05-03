@@ -97,8 +97,6 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
         num_batches = int(data.train._num_chunks/batch_size)
         num_test_batches = int(data.test._num_chunks/batch_size)
-        
-        test_loss = ae._test_loss
 
           #new_saver = tf.train.import_meta_graph(FLAGS.chkpt_dir+'.meta')
           #new_saver.restore(sess, tf.train.latest_checkpoint(FLAGS.chkpt_dir+'/'))
@@ -146,18 +144,18 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
                 #sess.run(tf.initialize_variables([pretrain_optimizer.get_slot(loss, name)
                 #                  
 
-                layer_wise_pretrain_summary_writer = tf.summary.FileWriter(tr_summary_dir)
+                layer_wise_pretrain_summary_writer = tf.summary.FileWriter(summary_dir)
                 
                 for epoch in xrange(FLAGS.pretraining_epochs):
                   for batches in xrange(num_batches):
                     feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
-                    loss_summary, loss_value  = sess.run([pretrain_trainer, loss],feed_dict=feed_dict)
+                    #loss_summary, loss_value  = sess.run([pretrain_trainer, loss],feed_dict=feed_dict)
 
                     
                     
-                  train_summary = sess.run(train_summary_op, feed_dict={train_error: 2}) # random constant just for debug
-                  summary_writer.add_summary(train_summary, epoch +FLAGS.pretraining_epochs*i)
+                  #train_summary = sess.run(train_summary_op, feed_dict={train_error: 2}) # random constant just for debug
+                  #summary_writer.add_summary(train_summary, epoch +FLAGS.pretraining_epochs*i)
                   '''
                     # Print results of screen
                     output = "| {0:>13} | {1:8.4f} | Epoch {2}  |"\
@@ -194,12 +192,12 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             '''print("| Training steps| Error    |   Epoch  |")
             print("|---------------|----------|----------|")'''
 
-            pretrain_summary_writer = tf.summary.FileWriter(tr_summary_dir)
+            #pretrain_summary_writer = tf.summary.FileWriter(summary_dir)
             
             for step in xrange(FLAGS.pretraining_epochs * num_batches):
               feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, variance, dropout)
 
-              loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
+              #loss_summary, loss_value  = sess.run([shallow_trainer, shallow_loss],feed_dict=feed_dict)
               
               '''if(step%5000 == 0):
                 # Print results of screen
@@ -250,7 +248,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
             error_sum=0
             for valid_batch in range(num_valid_batches):
               feed_dict = fill_feed_dict_ae(data.validation, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-              curr_err = sess.run([test_loss], feed_dict=feed_dict)
+              curr_err = sess.run([ae._loss], feed_dict=feed_dict)
               error_sum+= curr_err[0]
             new_error = error_sum/(num_valid_batches)
             test_sum = sess.run(test_summary_op, feed_dict={test_error: new_error})
@@ -274,7 +272,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     error_sum=0
     for train_batch in range(num_batches):
         feed_dict = fill_feed_dict_ae(data.train, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-        curr_err = sess.run([test_loss], feed_dict=feed_dict)
+        curr_err = sess.run([ae._loss], feed_dict=feed_dict)
         error_sum+= curr_err[0]
     train_error_ = error_sum/(num_batches)
 
@@ -282,7 +280,7 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
     error_sum=0
     for test_batch in range(num_test_batches):
       feed_dict = fill_feed_dict_ae(data.test, ae._input_, ae._target_, keep_prob, 0, 1, add_noise=False)
-      curr_err = sess.run([test_loss], feed_dict=feed_dict)
+      curr_err = sess.run([ae._loss], feed_dict=feed_dict)
       error_sum+= curr_err[0]
     test_error_ = error_sum/(num_test_batches)
 
@@ -291,21 +289,25 @@ def learning(data, restore, pretrain, learning_rate, batch_size, dropout,varianc
 
     print("The training was running for %.3f  min" % (duration))
 
+    ########################                              EXTRACT MIDDLE LAYER
+
     # Do visualization of the middle layer
-    walking = process_bvh_file(ae,'/home/taras/storage_original/data(daz)/06/06_01.bvh' , max_val, mean_pose, True)
+    sit_stand = process_bvh_file(ae,'/home/taras/storage_original/data(daz)/13/13_01.bvh' , max_val, mean_pose, True)
+    new_sit_stand = np.add( np.transpose(sit_stand), 1)
+    sio.savemat(FLAGS.data_dir+'/walking', {'trialId':'walking', 'spikes':new_sit_stand})
+
     boxing = process_bvh_file(ae, '/home/taras/storage_original/data(daz)/14/14_01.bvh', max_val, mean_pose, True)
+    new_boxing = np.add( np.transpose(boxing), 1)
+    sio.savemat(FLAGS.data_dir+'/boxing', {'trialId':'boxing', 'spikes':new_boxing})
 
     #DEBUG
-    print(walking.shape)
+    #np.savetxt(FLAGS.data_dir+'/reconstr.bvh', sit_stand , fmt='%.5f', delimiter=' ')
+    #print(walking.shape)
 
     '''print('And write an output into the file ' + output_bvh_file_name + '...')
     np.savetxt(output_bvh_file_name, walking, fmt='%.5f', delimiter=' ')'''
-
-    np.savetxt(FLAGS.data_dir+'/reconstr.bvh', walking, fmt='%.5f', delimiter=' ')
-
-    sio.savemat(FLAGS.data_dir+'/walking', {'trialId':'walking', 'spikes':np.transpose(walking)})
-
-    sio.savemat(FLAGS.data_dir+'/boxing', {'trialId':'boxing', 'spikes':np.transpose(boxing)})
+    
+   
 
     print('And write ', FLAGS.middle_layer,' layers into the file')
    
@@ -354,10 +356,11 @@ def process_bvh_file(ae,input_seq_file_name, max_val, mean_pose, extract_middle_
     # pass the batches of chunks through the AE
     print('Run the network...')
     if(extract_middle_layer):
+      middle_run=ae.process_sequences(ae._input_, 1, True) 
       print('But only untill the middle layer')
-      output_batches = np.array( [ sess.run(ae._middle_run , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+      output_batches = np.array( [ sess.run(ae._middle_layer  , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
     else:
-      output_batches = np.array( [ sess.run(ae._test_output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
+      output_batches = np.array( [ sess.run(ae._output , feed_dict={ae._input_: batches[i]}) for i in range(numb_of_batches)])
   
     #print(' output batches: ', output_batches, )
     

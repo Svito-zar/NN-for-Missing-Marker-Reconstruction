@@ -44,62 +44,63 @@ class FlatAutoEncoder(object):
     if(FLAGS.Weight_decay is not None):
       print('We apply weight decay')
 
-    with tf.variable_scope("AE_Variables"):
-
-      ##############        SETUP VARIABLES       ###############################################
+    with sess.graph.as_default():
       
-      # Create a variable to track the global step.
-      global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
-      
-      for i in xrange(self.__num_hidden_layers + 1): # go over all layers
+      with tf.variable_scope("AE_Variables"):
 
-        self._create_variables(i, FLAGS.Weight_decay)
-
-      # Define LSTM cell
-      lstm_size = self.__shape[self.__recurrent_layer+1] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
-      num_LSTM_layers = 1 # TODO: change
-      def lstm_cell():
-          return tf.contrib.rnn.BasicLSTMCell(
-            lstm_size, forget_bias=1.0, state_is_tuple=True)
-      self._RNN_cell = lstm_cell() #tf.contrib.rnn.MultiRNNCell(
-                 # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
-              
-      self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
-
-      ##############        DEFINE THE NETWORK LOSS       ###############################################
+        ##############        SETUP VARIABLES       ###############################################
         
-      # Get some constants from the flags file
-      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
-      chunk_length = self.sequence_length
-
-      #Define the network itself
-      self._input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
-                                    name='ae_input_pl')
-      self._target_ = tf.placeholder(dtype=tf.float32,
-                                     shape=(None, chunk_length, FLAGS.DoF),
-                                     name='ae_target_pl')
-
-      # Define output and loss for the training data
-      output = self.process_sequences(self._input_, dropout) # process batch of sequences
-
-      self._reconstruction_loss =  loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
-      tf.add_to_collection('losses', self._reconstruction_loss)
-      self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
-
-      # Define output and loss for the test data
-      self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
-      with tf.name_scope("eval"):
-        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
-
-
-      #Define the network run
-      self._middle_run = self.process_sequences(self._input_, 1, True) 
-
+        # Create a variable to track the global step.
+        global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
         
+        for i in xrange(self.__num_hidden_layers + 1): # go over all layers
+
+          self._create_variables(i, FLAGS.Weight_decay)
+
+        # Define LSTM cell
+        lstm_size = self.__shape[self.__recurrent_layer+1] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
+        
+        self._RNN_cell = tf.contrib.rnn.BasicLSTMCell(
+              lstm_size, forget_bias=1.0, state_is_tuple=True)
+
+        ''''
+        num_LSTM_layers = 1 # TODO: change
+        def lstm_cell():
+            return tf.contrib.rnn.BasicLSTMCell(
+              lstm_size, forget_bias=1.0, state_is_tuple=True)'''
+
+        #tf.contrib.rnn.MultiRNNCell(
+                   # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
+                
+        self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
+
+        ##############        DEFINE THE NETWORK LOSS       ###############################################
+          
+        # Get some constants from the flags file
+        keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+        chunk_length = self.sequence_length
+
+        #Define the network itself
+        self._input_ = tf.placeholder(dtype=tf.float32,
+                                      shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
+                                      name='ae_input_pl')
+        self._target_ = tf.placeholder(dtype=tf.float32,
+                                       shape=(None, chunk_length, FLAGS.DoF),
+                                       name='ae_target_pl')
+
+        # Define output and loss for the training data
+        self._output, self._middle_layer = self.process_sequences(self._input_, 1) # process batch of sequences. no dropout
+
+        self._reconstruction_loss =  loss_reconstruction(self._output, self._target_) /(batch_size*chunk_length)
+        tf.add_to_collection('losses', self._reconstruction_loss)
+        self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
+
+          
 
   def single_run(self, input_pl, time_step, dropout, just_middle = False):
-          """Get the output of the autoencoder for a single batch
+    
+    
+    """Get the output of the autoencoder for a single batch
 
           Args:
             input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
@@ -107,43 +108,38 @@ class FlatAutoEncoder(object):
             just_middle : will indicate if we want to extract only the middle layer of the network
           Returns:
             Tensor of output
-          """
+    """
           #print(self._RNN_state)
-	
-	  last_output = input_pl
+    
+    last_output = input_pl
 
-	  
-          if(~just_middle): # if not middle layer
-            numb_layers = self.__num_hidden_layers+1
-          else:
-            numb_layers = FLAGS.middle_layer
+    numb_layers = self.__num_hidden_layers+1
 
-          if(time_step==0):
-            print('Middle : ', just_middle )
+    # Pass through the network
+    for i in xrange(numb_layers):
 
-          # Pass through the network
-          for i in xrange(numb_layers):
-
+      if(i == FLAGS.middle_layer):
+        middle_run = last_output
             
-            if(i!=self.__recurrent_layer):
-              w = self._w(i + 1)
-              b = self._b(i + 1)
-              last_output = self._activate(last_output, w, b)
+      if(i!=self.__recurrent_layer):
+        w = self._w(i + 1)
+        b = self._b(i + 1)
+        last_output = self._activate(last_output, w, b)
 
-            else:
-              if time_step > 0:
-                tf.get_variable_scope().reuse_variables()
-              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+      else:
+        if time_step > 0:
+          tf.get_variable_scope().reuse_variables()
+        (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
-          # Maybe apply recurrency at the output layer
-          if(self.num_hidden_layers+1==self.__recurrent_layer):
-              if time_step > 0:
-                tf.get_variable_scope().reuse_variables()
-              (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+    # Maybe apply recurrency at the output layer
+    if(self.num_hidden_layers+1==self.__recurrent_layer):
+      if time_step > 0:
+        tf.get_variable_scope().reuse_variables()
+      (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
 
           #print('Time_Step ', time_step,' : ', last_output)
           
-          return last_output
+    return [last_output, middle_run]
 
   def process_sequences(self, input_seq_pl, dropout, just_middle = False):
           
@@ -163,15 +159,19 @@ class FlatAutoEncoder(object):
           # Take batches for every time step and run them through the network
           # Stack all their outputs
           with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length) ])
+            network_results = np.array([self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length)])
+            
+          stacked_outputs = tf.stack( [network_results[i][0] for i in range(self.sequence_length)])
+          stacked_middle_layers = tf.stack( [network_results[i][1] for i in range(self.sequence_length)])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 
           output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+          middle_layers = tf.transpose(stacked_middle_layers  , perm=[1, 0, 2])
 
           # print('The final result has a shape:', output.shape)
           
-          return output
+          return output, middle_layers
         
   @property
   def shape(self):
