@@ -44,57 +44,55 @@ class FlatAutoEncoder(object):
     if(FLAGS.Weight_decay is not None):
       print('We apply weight decay')
 
-    with tf.variable_scope("AE_Variables"):
+    with sess.graph.as_default():
 
-      ##############        SETUP VARIABLES       ###############################################
+      with tf.variable_scope("AE_Variables"):
       
-      # Create a variable to track the global step.
-      global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
-      
-      for i in xrange(self.__num_hidden_layers + 1): # go over all layers
+        # Create a variable to track the global step.
+        global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
+        
+        for i in xrange(self.__num_hidden_layers + 1): # go over all layers
 
-        self._create_variables(i, FLAGS.Weight_decay)
+          self._create_variables(i, FLAGS.Weight_decay)
 
-      # Define LSTM cell
-      lstm_size = FLAGS.representation_size
-      num_LSTM_layers = 5 # TODO: change
-      def lstm_cell(size):
-          return tf.contrib.rnn.BasicLSTMCell(
-            size, forget_bias=1.0, state_is_tuple=True)
-      self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
+        # Define LSTM cell
+        lstm_size = self.__shape[self.__recurrent_layer+1] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
+        num_LSTM_layers = 1 # TODO: change
+        def lstm_cell(size):
+           return tf.contrib.rnn.BasicLSTMCell(
+             size, forget_bias=1.0, state_is_tuple=True)
+        self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
                   [lstm_cell(lstm_size) for i in range(num_LSTM_layers)], state_is_tuple=True)
       
-      self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
+        self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
 
-      ##############        DEFINE THE NETWORK LOSS       ###############################################
-        
-      # Get some constants from the flags file
-      keep_prob = tf.placeholder(tf.float32) #dropout placeholder
-      chunk_length = self.sequence_length
+        ##############        DEFINE THE NETWORK LOSS       ###############################################
+          
+        # Get some constants from the flags file
+        keep_prob = tf.placeholder(tf.float32) #dropout placeholder
+        chunk_length = self.sequence_length
 
-      #Define the network itself
-      self._input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
-                                    name='ae_input_pl')
-      self._target_ = tf.placeholder(dtype=tf.float32,
-                                     shape=(None, chunk_length, FLAGS.DoF),
-                                     name='ae_target_pl')
+        #Define the network itself
+        self._input_ = tf.placeholder(dtype=tf.float32,
+                                      shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
+                                      name='ae_input_pl')
+        self._target_ = tf.placeholder(dtype=tf.float32,
+                                       shape=(None, chunk_length, FLAGS.DoF),
+                                       name='ae_target_pl')
 
-      # Define output and loss for the training data
-      output = self.process_sequences(self._input_, dropout) # process batch of sequences
+        # Define output and loss for the training data
+        self._output, self._middle_layer = self.process_sequences(self._input_, 1) # process batch of sequences. no dropout
 
-      self._reconstruction_loss =  loss_reconstruction(output, self._target_) /(batch_size*chunk_length)
-      tf.add_to_collection('losses', self._reconstruction_loss)
-      self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
+        self._reconstruction_loss =  loss_reconstruction(self._output, self._target_) /(batch_size*chunk_length)
+        tf.add_to_collection('losses', self._reconstruction_loss)
+        self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
 
-      # Define output and loss for the test data
-      self._test_output = self.process_sequences(self._input_, 1) # we do not have dropout during testing
-      with tf.name_scope("eval"):
-        self._test_loss = loss_reconstruction(self._test_output, self._target_) /(batch_size*chunk_length)
-        
+          
 
   def single_run(self, input_pl, time_step, dropout, just_middle = False):
-          """Get the output of the autoencoder for a single batch
+    
+    
+    """Get the output of the autoencoder for a single batch
 
           Args:
             input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
@@ -102,21 +100,38 @@ class FlatAutoEncoder(object):
             just_middle : will indicate if we want to extract only the middle layer of the network
           Returns:
             Tensor of output
-          """
+    """
           #print(self._RNN_state)
-	
-	  last_output = input_pl
+    
+    last_output = input_pl
 
-          # Pass through the network
-          if time_step > 0:
-            tf.get_variable_scope().reuse_variables()
-          (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+    numb_layers = self.__num_hidden_layers+1
 
-          w = self._w(self.num_hidden_layers + 1)
-          b = self._b(self.num_hidden_layers + 1)
-          last_output = self._activate(last_output, w, b)
+    # Pass through the network
+    for i in xrange(numb_layers):
 
-          return last_output
+      if(i == FLAGS.middle_layer):
+        middle_run = last_output
+            
+      if(i!=self.__recurrent_layer):
+        w = self._w(i + 1)
+        b = self._b(i + 1)
+        last_output = self._activate(last_output, w, b)
+
+      else:
+        if time_step > 0:
+          tf.get_variable_scope().reuse_variables()
+        (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+
+    # Maybe apply recurrency at the output layer
+    if(self.num_hidden_layers+1==self.__recurrent_layer):
+      if time_step > 0:
+        tf.get_variable_scope().reuse_variables()
+      (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
+
+          #print('Time_Step ', time_step,' : ', last_output)
+          
+    return [last_output, middle_run]
 
   def process_sequences(self, input_seq_pl, dropout, just_middle = False):
           
@@ -130,26 +145,25 @@ class FlatAutoEncoder(object):
             Tensor of output
           """
 
-          if(~just_middle): # if not middle layer
-            numb_layers = self.__num_hidden_layers+1
-          else:
-            numb_layers = FLAGS.middle_layer
-
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
             
           # Take batches for every time step and run them through the network
           # Stack all their outputs
           with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            stacked_outputs = tf.stack( [ self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length) ])
+            network_results = np.array([self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length)])
+            
+          stacked_outputs = tf.stack( [network_results[i][0] for i in range(self.sequence_length)])
+          stacked_middle_layers = tf.stack( [network_results[i][1] for i in range(self.sequence_length)])
 
           # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
 
           output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
+          middle_layers = tf.transpose(stacked_middle_layers  , perm=[1, 0, 2])
 
           # print('The final result has a shape:', output.shape)
           
-          return output
+          return output, middle_layers
         
   @property
   def shape(self):
@@ -278,44 +292,6 @@ class FlatAutoEncoder(object):
           
           return output
 
-  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
-    """ Writing a middle layer into the matlab file
-
-    Args:
-      ae:                     ae, middle layer of which we want to save
-      input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
-      output_seq_file_name:   name of the file in which we will write a middle layer of the AE
-      name:                   name of the  'trial' for these sequence
-    Returns:
-      nothing
-    """
-    print('\nExtracting middle layer for a test sequence...')
-    
-    with self.__sess.graph.as_default():
-       
-      sess = self.__sess
-      
-      # get input sequnce
-      currSequence = read_file(input_seq_file_name)
-
-      # define tensors
-      input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, FLAGS.DoF),
-                                    name='ae_input_pl')
-      # Define the size of current input sequence
-      self.__curr_batch_size = sess.run(tf.shape(input_ )[0], feed_dict={input_ : currSequence})
-
-      # Define on an operator
-      middle_op = self.run_net(input_ , 1, just_middle = True) # 1 means that we have no dropout
-        
-      # for each snippet in a sequence
-      # pass through the network untill the middle layer
-      middle = sess.run(middle_op, feed_dict={input_: currSequence})
-        
-      # save it into a file
-      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
-
-
   def _create_variables(self, i, wd):
     """Helper to create an initialized Variable with weight decay.
     Note that the Variable is initialized with a truncated normal distribution.
@@ -397,4 +373,38 @@ class FlatAutoEncoder(object):
                          transpose_w=True) # TODO: maybe try without symmerty
     
     return out
+
+  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
+    """ Writing a middle layer into the matlab file
+
+    Args:
+      ae:                     ae, middle layer of which we want to save
+      input_seq_file_name:    name of the file with the sequence for which we want to get a middle layer
+      output_seq_file_name:   name of the file in which we will write a middle layer of the AE
+      name:                   name of the  'trial' for these sequence
+    Returns:
+      nothing
+    """
+    print('\nExtracting middle layer for a test sequence...')
+    
+    with self.__sess.graph.as_default():
+       
+      sess = self.__sess
+      
+      # get input sequnce
+      currSequence = read_file(input_seq_file_name)
+
+      # define tensors
+      input_ = tf.placeholder(dtype=tf.float32,
+                                    shape=(None, FLAGS.DoF),
+                                    name='ae_input_pl')
+      # Define on an operator
+      middle_op = self.process_sequences(input_ , 1, just_middle = True) # 1 means that we have no dropout
+        
+      # for each snippet in a sequence
+      # pass through the network untill the middle layer
+      middle = sess.run(middle_op, feed_dict={input_: currSequence})
+        
+      # save it into a file
+      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
 
