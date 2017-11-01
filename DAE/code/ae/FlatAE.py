@@ -1,18 +1,13 @@
 from __future__ import division
 from __future__ import print_function
-import time
-from os.path import join as pjoin
 
 import numpy as np
-import scipy.io as sio
 import tensorflow as tf
-from tensorflow.contrib import rnn
-import time
-from utils.data import fill_feed_dict_ae, read_unlabeled_data, read_file, loss_reconstruction
+from utils.data import  read_c3d_file, add_noise, loss_reconstruction
 from utils.flags import FLAGS
+from AE import AutoEncoder, use_existing_markers, simulate_missing_markets
 
-
-class FlatAutoEncoder(object):
+class FlatAutoEncoder(AutoEncoder):
   """Generic deep autoencoder.
 
   Autoencoder used for full training cycle.
@@ -20,129 +15,89 @@ class FlatAutoEncoder(object):
   by specifying number of inputs, the number of hidden
   units for each layer and the number of final outputs.
   """
-  _weights_str = "weights{0}"
-  _biases_str = "biases{0}"
 
-  def __init__(self, shape, sess, learning_rate, batch_size, dropout, variance):
+
+  def __init__(self, shape, sess, batch_size,  variance_coef, data_info):
     """Autoencoder initializer
 
     Args:
-      shape: list of ints specifying
-              num input, hidden1 units,...hidden_n units, num logits
-      sess: tensorflow session object to use
+      shape:          list of ints specifying
+                      num input, hidden1 units,...hidden_n units, num logits
+      sess:           tensorflow session object to use
+      batch_size:     batch size
+      varience_coed:  multiplicative factor for the variance of noise wrt the variance of data
+      data_sigma:     variance of data
     """
-    self.__shape = shape  # [input_dim,hidden1_dim,...,hidden_n_dim,output_dim]
-    self.__num_hidden_layers = len(self.__shape) - 2
-    self.__recurrent_layer = FLAGS.recurrent_layer 
 
-    self.__sequence_length = FLAGS.chunk_length
-    self.__batch_size = batch_size
+    AutoEncoder.__init__(self, len(shape) - 2, batch_size, FLAGS.chunk_length, sess, data_info)
+
+    self.__shape = shape  # [input_dim,hidden1_dim,...,hidden_n_dim,output_dim]
 
     self.__variables = {}
-    self.__sess = sess
 
     if(FLAGS.Weight_decay is not None):
       print('We apply weight decay')
 
     with sess.graph.as_default():
-      
+
       with tf.variable_scope("AE_Variables"):
 
         ##############        SETUP VARIABLES       ###############################################
-        
+
         # Create a variable to track the global step.
-        global_step = tf.get_variable(name='global_step', shape=[1], initializer=tf.constant_initializer(0.0)) #tf.Variable(0, name='global_step', trainable=False)
-        
-        for i in xrange(self.__num_hidden_layers + 1): # go over all layers
+        global_step = tf.Variable(0,name='global_step',trainable=False)
+
+        for i in xrange(self.num_hidden_layers + 1): # go over all layers
 
           self._create_variables(i, FLAGS.Weight_decay)
 
-        # Define LSTM cell
-        lstm_size = self.__shape[self.__recurrent_layer+1] if self.__recurrent_layer <= self.num_hidden_layers+1 else self.num_hidden_layers+1
-        
-        self._RNN_cell = tf.contrib.rnn.BasicLSTMCell(
-              lstm_size, forget_bias=1.0, state_is_tuple=True)
+        if(FLAGS.reccurent):
+            # Define LSTM cell
+            lstm_sizes = self.__shape[1:]
+            def lstm_cell(size):
+                basic_cell = tf.contrib.rnn.BasicLSTMCell(
+                    size, forget_bias=1.0, state_is_tuple=True)
+                #Apply dropout on the hidden layers
+                if(size!=self.__shape[-1]):
+                    hidden_cell = tf.contrib.rnn.DropoutWrapper(cell=basic_cell, output_keep_prob=FLAGS.dropout)
+                    return hidden_cell
+                else:
+                    return basic_cell
 
-        ''''
-        num_LSTM_layers = 1 # TODO: change
-        def lstm_cell():
-            return tf.contrib.rnn.BasicLSTMCell(
-              lstm_size, forget_bias=1.0, state_is_tuple=True)'''
+            self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
+                [lstm_cell(sz) for sz in lstm_sizes], state_is_tuple=True)
 
-        #tf.contrib.rnn.MultiRNNCell(
-                   # [lstm_cell() for _ in range(num_LSTM_layers)], state_is_tuple=True)
-                
-        self._initial_state = self._RNN_cell.zero_state(self.batch_size, tf.float32)
-
-        ##############        DEFINE THE NETWORK LOSS       ###############################################
-          
         # Get some constants from the flags file
-        keep_prob = tf.placeholder(tf.float32) #dropout placeholder
-        chunk_length = self.sequence_length
+        self._keep_prob = tf.placeholder(tf.float32) #dropout placeholder
 
-        #Define the network itself
-        self._input_ = tf.placeholder(dtype=tf.float32,
-                                      shape=(None, chunk_length, FLAGS.DoF), #FLAGS.batch_size
-                                      name='ae_input_pl')
-        self._target_ = tf.placeholder(dtype=tf.float32,
-                                       shape=(None, chunk_length, FLAGS.DoF),
-                                       name='ae_target_pl')
+        ##############        DEFINE THE NETWORK     ###############################################
+
+        # Declare a mask for simulating missing_values
+        self._mask = tf.placeholder(dtype=tf.float32, shape = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input], name = 'Mask_of_mis_markers')
+
+        # 1 - Setup network for TRAINing
+        self._input_  = add_noise(self._train_batch , variance_coef, data_info._data_sigma)
+        self._target_ = self._train_batch #Input noisy data and reconstruct the original one
 
         # Define output and loss for the training data
-        self._output, self._middle_layer = self.process_sequences(self._input_, 1) # process batch of sequences. no dropout
+        self._output = self.construct_graph(self._input_, FLAGS.dropout) # process batch of sequences. no dropout
 
-        self._reconstruction_loss =  loss_reconstruction(self._output, self._target_) /(batch_size*chunk_length)
-        tf.add_to_collection('losses', self._reconstruction_loss)
-        self._loss =       tf.add_n(tf.get_collection('losses'), name='total_loss')
+        # Normalize the L2 loss
+        self._reconstruction_loss =  loss_reconstruction(self._output, self._target_, self.max_val) #/ tf.cast(size, tf.float32) #(batch_size*chunk_length)
+        tf.add_to_collection('losses', self._reconstruction_loss) # allow for weight decay
+        self._loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
-          
+        # 2 - Setup network for TESTing
+        self._valid_input_  = self._valid_batch
+        self._valid_target_ = self._valid_batch
+        # Define output
+        self._valid_output = self.construct_graph(self._valid_input_, FLAGS.dropout)
 
-  def single_run(self, input_pl, time_step, dropout, just_middle = False):
-    
-    
-    """Get the output of the autoencoder for a single batch
+        # Define loss
+        self._valid_loss =   loss_reconstruction(self._valid_output, self._valid_target_,self.max_val) #/  tf.cast(size, tf.float32) #(batch_size*chunk_length)
 
-          Args:
-            input_pl:     tf placeholder for ae input data of size [batch_size, DoF]
-            state:        current state of LSTM memory units
-            just_middle : will indicate if we want to extract only the middle layer of the network
-          Returns:
-            Tensor of output
-    """
-          #print(self._RNN_state)
-    
-    last_output = input_pl
+  def construct_graph(self, input_seq_pl, dropout, just_middle = False):
 
-    numb_layers = self.__num_hidden_layers+1
-
-    # Pass through the network
-    for i in xrange(numb_layers):
-
-      if(i == FLAGS.middle_layer):
-        middle_run = last_output
-            
-      if(i!=self.__recurrent_layer):
-        w = self._w(i + 1)
-        b = self._b(i + 1)
-        last_output = self._activate(last_output, w, b)
-
-      else:
-        if time_step > 0:
-          tf.get_variable_scope().reuse_variables()
-        (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
-
-    # Maybe apply recurrency at the output layer
-    if(self.num_hidden_layers+1==self.__recurrent_layer):
-      if time_step > 0:
-        tf.get_variable_scope().reuse_variables()
-      (last_output, self._RNN_state) = self._RNN_cell(last_output, self._RNN_state)
-
-          #print('Time_Step ', time_step,' : ', last_output)
-          
-    return [last_output, middle_run]
-
-  def process_sequences(self, input_seq_pl, dropout, just_middle = False):
-          
           """Get the output of the autoencoder
 
           Args:
@@ -153,45 +108,57 @@ class FlatAutoEncoder(object):
             Tensor of output
           """
 
-          # Initial state of the LSTM memory.
-          self._RNN_state = self._initial_state
-            
-          # Take batches for every time step and run them through the network
-          # Stack all their outputs
-          with tf.control_dependencies([tf.convert_to_tensor(self._RNN_state, name='state') ]): # do not let paralelize the loop
-            network_results = np.array([self.single_run(input_seq_pl[:,time_st,:], time_st,dropout, just_middle) for time_st in range(self.sequence_length)])
-            
-          stacked_outputs = tf.stack( [network_results[i][0] for i in range(self.sequence_length)])
-          stacked_middle_layers = tf.stack( [network_results[i][1] for i in range(self.sequence_length)])
+          network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
 
-          # Transpose output from the shape [sequence_length, batch_size, DoF] into [batch_size, sequence_length, DoF]
+          if(FLAGS.reccurent == False):
+              last_output = network_input[:,0,:]
 
-          output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
-          middle_layers = tf.transpose(stacked_middle_layers  , perm=[1, 0, 2])
+              numb_layers = self.num_hidden_layers + 1
 
-          # print('The final result has a shape:', output.shape)
-          
-          return output, middle_layers
-        
+              # Pass through the network
+              for i in xrange(numb_layers):
+
+                  # First - Apply Dropout
+                  last_output = tf.nn.dropout(last_output, dropout)
+
+                  w = self._w(i + 1)
+                  b = self._b(i + 1)
+
+                      # Debug
+                      # print('Matrix: ', w)
+                      # print('Input: ', last_output.shape)
+                  last_output = self._activate(last_output, w, b)
+
+              output = tf.reshape(last_output, [self.batch_size, 1, FLAGS.frame_size * FLAGS.amount_of_frames_as_input])
+
+          else:
+              output, last_states = tf.nn.dynamic_rnn(
+                  cell=self._RNN_cell,
+                  dtype=tf.float32,
+                  sequence_length=[self.sequence_length for i in range(self.batch_size)],
+                  inputs=network_input)
+
+          #print('The final result has a shape:', output.shape)
+
+          tf.get_variable_scope().reuse_variables() # so that we can use the same LSTM both for training and testing
+
+
+          return output
+
+  def _w(self, n, suffix=""):
+    return self[self._weights_str.format(n) + suffix]
+
+  def _b(self, n, suffix=""):
+    return self[self._biases_str.format(n) + suffix]
+
   @property
   def shape(self):
     return self.__shape
-  
-  @property
-  def num_hidden_layers(self):
-    return self.__num_hidden_layers
 
-  @property
-  def sequence_length(self):
-    return self.__sequence_length
-
-  @property
-  def batch_size(self):
-    return self.__batch_size
-
-  @property
-  def session(self):
-    return self.__sess
+  @staticmethod
+  def _activate(x, w, b, transpose_w=False):
+    y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
+    return y
 
   def __getitem__(self, item):
     """Get autoencoder tf variable
@@ -220,29 +187,6 @@ class FlatAutoEncoder(object):
     """
     self.__variables[key] = value
 
-  def _w(self, n, suffix=""):
-    return self[self._weights_str.format(n) + suffix]
-
-  def _b(self, n, suffix=""):
-    return self[self._biases_str.format(n) + suffix]
-
-  def get_variables(self):
-    """Return list of all variables of Autoencoder
-    """
-
-    vars=[]
-
-    for n in range(self.__num_hidden_layers):
-      vars.append(self._w(n+1))
-      vars.append(self._b(n+1))
-
-    return vars
-
-  @staticmethod
-  def _activate(x, w, b, transpose_w=False):
-    y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
-    return y
-
   def run_shallow(self, input_pl):
       """Get the output of the autoencoder,if it would consist
          only from the first and the last layer
@@ -264,10 +208,10 @@ class FlatAutoEncoder(object):
         last_output = self._activate(input_pl, w, b)
 
         # then apply last layer of the network
-        w = self._w(self.__num_hidden_layers+1)
-        b = self._b(self.__num_hidden_layers+1)
+        w = self._w(self.num_hidden_layers + 1)
+        b = self._b(self.num_hidden_layers + 1)
         last_output = self._activate(last_output, w, b)
-                
+
       return last_output
 
   def process_sequences_shallow(self, input_seq_pl, dropout):
@@ -284,7 +228,7 @@ class FlatAutoEncoder(object):
 
           # Initial state of the LSTM memory.
           self._RNN_state = self._initial_state
-            
+
           # First - Apply Dropout
           the_whole_sequences = tf.nn.dropout(input_seq_pl, dropout)
 
@@ -297,7 +241,7 @@ class FlatAutoEncoder(object):
           output = tf.transpose(stacked_outputs , perm=[1, 0, 2])
 
           # print('The final result has a shape:', output.shape)
-          
+
           return output
 
   def _create_variables(self, i, wd):
@@ -313,7 +257,7 @@ class FlatAutoEncoder(object):
     """
 
     dtype = tf.float16 if FLAGS.use_fp16 else tf.float32 #- TODO: integrate it into the code
-    
+
     # Initialize Train weights
     w_shape = (self.__shape[i], self.__shape[i + 1])
     a = tf.multiply(2.0, tf.sqrt(6.0 / (w_shape[0] + w_shape[1])))
@@ -328,13 +272,13 @@ class FlatAutoEncoder(object):
 
     # Add the histogram summary
     tf.summary.histogram(name_w,self[name_w])
-    
+
     # Initialize Train biases
     name_b = self._biases_str.format(i + 1)
     b_shape = (self.__shape[i + 1],)
     self[name_b] = tf.get_variable(name_b, initializer=tf.zeros(b_shape))
 
-    if i < self.__num_hidden_layers:
+    if i < self.num_hidden_layers:
       # Hidden layer fixed weights (after pretraining before fine tuning)
       self[name_w + "_fixed"] = tf.get_variable(name=name_w + "_fixed",
                                                 initializer=tf.random_uniform(w_shape, -1 * a, a),
@@ -350,7 +294,7 @@ class FlatAutoEncoder(object):
       self[name_b_out] = tf.get_variable(name=name_b_out, initializer=b_init,
                                          trainable=True)
 
-  
+
   def run_less_layers(self, input_pl, n, is_target=False):
     """Return net for step n training or target net
     Args:
@@ -362,10 +306,10 @@ class FlatAutoEncoder(object):
       Tensor giving pretraining net or pretraining target
     """
     assert n > 0
-    assert n <= self.__num_hidden_layers
+    assert n <= self.num_hidden_layers
 
     last_output = input_pl[:,0,:] # reduce dimensionality
-    
+
     for i in xrange(n - 1):
       w = self._w(i + 1, "_fixed")
       b = self._b(i + 1, "_fixed")
@@ -379,10 +323,10 @@ class FlatAutoEncoder(object):
 
     out = self._activate(last_output, self._w(n), self._b(n,"_out"),
                          transpose_w=True) # TODO: maybe try without symmerty
-    
+
     return out
 
-  def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
+  '''def write_middle_layer(self, input_seq_file_name, output_seq_file_name, name):
     """ Writing a middle layer into the matlab file
 
     Args:
@@ -394,25 +338,55 @@ class FlatAutoEncoder(object):
       nothing
     """
     print('\nExtracting middle layer for a test sequence...')
-    
+
     with self.__sess.graph.as_default():
-       
+
       sess = self.__sess
-      
+
       # get input sequnce
-      currSequence = read_file(input_seq_file_name)
+      currSequence = read_c3d_file(input_seq_file_name)
 
       # define tensors
       input_ = tf.placeholder(dtype=tf.float32,
-                                    shape=(None, FLAGS.DoF),
+                                    shape=(None, self.__shape[0]),
                                     name='ae_input_pl')
       # Define on an operator
       middle_op = self.process_sequences(input_ , 1, just_middle = True) # 1 means that we have no dropout
-        
+
       # for each snippet in a sequence
       # pass through the network untill the middle layer
       middle = sess.run(middle_op, feed_dict={input_: currSequence})
-        
+
       # save it into a file
-      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})
+      sio.savemat(output_seq_file_name, {'trialId':name, 'spikes':np.transpose(middle)})'''
+
+
+
+
+def remove_right_hand(input_position):
+  """ Set all the coordinates for the right hand to 0
+
+  Args:
+    input_position: full body position
+  Returns:
+    position_wo_r_hand : position, where right hand is nulified
+  """
+
+  # Go over all the frames in the input
+  for frame_id in range(FLAGS.amount_of_frames_as_input):
+    offset = FLAGS.frame_size * frame_id
+    coords_before_right_arm = input_position[:,:, 0 + offset : 18 + offset ]
+    coords_after_right_arm = input_position[:,:, 30 + offset : 66 + offset]
+    zeros_for_right_arm =  [[[0 for i in range(12)] for j in range(FLAGS.chunk_length)] for k in range(FLAGS.batch_size)]
+    frame_wo_r_hand = tf.concat((coords_before_right_arm, zeros_for_right_arm, coords_after_right_arm), axis=2)
+    # add next frame with r hand nullified to the resulting position
+    if(frame_id) == 0:
+      position_wo_r_hand = frame_wo_r_hand
+    else:
+      position_wo_r_hand = tf.concat((position_wo_r_hand, frame_wo_r_hand), axis = 2)
+
+  return position_wo_r_hand
+
+
+#if __name__ == '__main__':
 
