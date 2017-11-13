@@ -101,7 +101,7 @@ def read_bvh_file(fileName, test=False):
     # Transpose the last 2 dimensions
     sequence = np.transpose(sequence, axes = (0,2,1))
     #Flaten all the coords into one vector
-    return np.reshape(sequence,(sequence.shape[0],sequence.shape[1]*sequence.shape[2]))
+    return np.reshape(sequence,(sequence.shape[0],sequence.shape[1]*sequence.shape[2])), hips
 
 
 def read_c3d_file(file_name):
@@ -332,7 +332,7 @@ def read_a_folder(curr_dir):
     for sub_dir in os.listdir(curr_dir):
         print(sub_dir)
         for filename in os.listdir(curr_dir + '/' + sub_dir):
-            curr_sequence = read_bvh_file(curr_dir + '/' + sub_dir + '/' + filename)
+            curr_sequence = read_c3d_file(curr_dir + '/' + sub_dir + '/' + filename)
 
             ''''# Move to TfRecords
             print(curr_sequence)
@@ -352,7 +352,7 @@ def read_a_folder(curr_dir):
 
         print(data.shape)
 
-        if(data.shape[0]>20000):
+        if(data.shape[0]>10):
             break
 
     data = np.array(data)

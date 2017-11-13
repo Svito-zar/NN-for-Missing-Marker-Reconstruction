@@ -15,21 +15,21 @@ FLAGS = flags.FLAGS
 
 # Flags about the sequence processing
 
-flags.DEFINE_integer('chunk_length', 30, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 15,'Stride for spliting sequences into the chunks')
-flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
+flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
+flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
 
-flags.DEFINE_float('learning_rate', 0.0002 ,
+flags.DEFINE_float('learning_rate', 0.00004 ,
                    'learning rate for training .')
 
 flags.DEFINE_float('variance_of_noise', 0.00, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 # Constants
 
-flags.DEFINE_integer('seed', 12345, 'Random seed')
+flags.DEFINE_integer('seed', 123456, 'Random seed')
 
-flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 1.0, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('batch_size', 10,
+flags.DEFINE_integer('batch_size', 128,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs',5,
@@ -39,7 +39,7 @@ flags.DEFINE_integer('training_epochs', 100,
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('frame_size', 96, 'Dimensionality of the input for a single frame')
-flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
+flags.DEFINE_integer('amount_of_frames_as_input', 10, 'Amount of frames used as input at each time step')
 
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
@@ -50,8 +50,8 @@ flags.DEFINE_float('missing_rate', 0.2, 'What fraction of the input is missing d
 flags.DEFINE_float('defaul_value', 0, 'What number we will put in place of the missing marker')
 
 # Flags about training
-flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
-flags.DEFINE_integer('chkpt_num' ,59347, 'Number of the checkpoint')
+flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 1016735, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
@@ -60,13 +60,13 @@ flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise 
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
 flags.DEFINE_boolean('Early_stopping',False,' Whether we do early stopping')
 
-flags.DEFINE_float('delta_for_early_stopping', 0.1, 'How much worst the results must get in order for training to be terminated. 0.05 mean 5% worst than best we had')
+flags.DEFINE_float('delta_for_early_stopping', 1.5, 'How much worst the results must get in order for training to be terminated. 0.05 mean 5% worst than best we had')
 
 
 """ 							FLAT AE 			"""
 
 flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
-flags.DEFINE_integer('network_width', 128, 'Number of units in each hidden layer ')
+flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
 
 
 """ 							Other parameters			"""
