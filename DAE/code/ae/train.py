@@ -478,7 +478,7 @@ def get_the_data():
 
   return data, max_val,mean_pose
 
-def ignore_right_hand(input_position):
+def ignore_left_hand(input_position):
   """ Reduce all the vectore to the one without right_hand
 
   Args:
@@ -490,6 +490,37 @@ def ignore_right_hand(input_position):
   coords_before_right_arm = input_position[:, 0 : 10*3]
   coords_after_right_arm = input_position[:, 16*3 :]
   position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
+
+  return position_wo_r_hand
+
+def ignore_both_hands(input_position):
+  """ Reduce all the vectore to the one without right_hand
+
+  Args:
+    input_position: full body position
+  Returns:
+    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
+  """
+  
+  coords_before_right_arm = input_position[:, 0 : 9*3]
+  coords_after_right_arm = input_position[:, 22*3 :]
+  position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
+
+  return position_wo_r_hand
+
+def ignore_left_part(input_position):
+  """ Reduce all the vectore to the one without right_hand
+
+  Args:
+    input_position: full body position
+  Returns:
+    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
+  """
+  
+  coords_before_left_arm = input_position[:, 0 : 9*3]
+  coords_after_left_arm = input_position[:, 16*3:22*3]
+  coords_after_left_leg = input_position[:, 27*3:]
+  position_wo_r_hand = np.concatenate((coords_before_left_arm, coords_after_left_arm, coords_after_left_leg), axis=1)
 
   return position_wo_r_hand
 
@@ -515,14 +546,13 @@ if __name__ == '__main__':
   np.savetxt(FLAGS.data_dir + '/output.bvh', result, fmt='%.5f', delimiter=' ')
   print('Write an actual data into the file ' + FLAGS.data_dir + '/output.bvh' + '...')'''
 
-  no_hand = ignore_right_hand(original_input)
-  hips_actual = np.tile(hips, (1,32))
-  hips_no_hand = np.concatenate((hips_actual[:,0:10*3], hips_actual[:,16*3:]), axis=1)
+  no_hand = ignore_left_part(original_input)
+  hips_no_hand = np.tile(hips, (1,20))
   result = no_hand + hips_no_hand
 
-  result = original_input + hips_actual
-  np.savetxt(FLAGS.data_dir + '/run.bvh', result, fmt='%.5f', delimiter=' ')
-  print('And write an output without into the file ' + FLAGS.data_dir + '/no_hand.bvh' + '...')
+  #result = original_input + hips_actual
+  np.savetxt(FLAGS.data_dir + '/no_left.bvh', result, fmt='%.5f', delimiter=' ')
+  print('And write an output without into the file ' + FLAGS.data_dir + '/no_left.bvh' + '...')
 
 
   # Train the network
@@ -536,7 +566,7 @@ if __name__ == '__main__':
   print("\nOur RMSE for the jump is : ", rmse)
   rmse = test(ae, FLAGS.data_dir + '/test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
                               mean_pose)
-  print("\nOur RMSE for the breakdance is : ", rmse)
+  print("\nOur RMSE for the run stop is : ", rmse)
   rmse = test(ae, FLAGS.data_dir + '/test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
                               mean_pose)
   print("\nOur RMSE for the breakdance is : ", rmse)

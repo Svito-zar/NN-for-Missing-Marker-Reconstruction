@@ -99,6 +99,7 @@ class AutoEncoder(object):
           body_parts = [r_arm, l_arm, r_leg, l_leg]
       else:
           # Define just one body part
+          arms = np.array([10, 11, 12, 13, 14, 21])
           body_parts = [r_arm]
 
       # initialize mask
@@ -112,16 +113,29 @@ class AutoEncoder(object):
           # create binary raw
           prev_data = np.ones([FLAGS.chunk_length, missing_body_part[0]*3] ) # we ignore FLAGS.amount_of_frames_as_input for now
           missing_data = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
-          next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
-          mask_for_seq = np.concatenate((prev_data, missing_data,next_data), axis = 1)
+
+          Left_part = False
+          
+          if(Left_part and not train_flag):
+            # Choose a random body part
+            missing_body_part = r_leg
+
+            # create binary raw
+            prev_data_2 = np.ones([FLAGS.chunk_length, missing_body_part[0]*3 - (r_arm[-1]+1)*3] ) # we ignore FLAGS.amount_of_frames_as_input for now
+            missing_data_2 = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
+
+            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
+            mask_for_seq = np.concatenate((prev_data, missing_data,prev_data_2, missing_data_2,next_data), axis = 1)
+            
+          else:
+            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
+            mask_for_seq = np.concatenate((prev_data, missing_data,next_data), axis = 1)
 
           if (FLAGS.amount_of_frames_as_input > 1):
               mask_for_seq = np.tile(mask_for_seq, (1,FLAGS.amount_of_frames_as_input))
 
           # Add this raw to the binary mask
           mask[sequence] = mask_for_seq
-
-
 
       return mask
 
