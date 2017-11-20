@@ -88,7 +88,7 @@ class FlatAutoEncoder(AutoEncoder):
         self._loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
         # 2 - Setup network for TESTing
-        self._valid_input_  = self._valid_batch
+        self._valid_input_  = add_noise(self._valid_batch , variance_coef, data_info._data_sigma)
         self._valid_target_ = self._valid_batch
         # Define output
         self._valid_output = self.construct_graph(self._valid_input_, FLAGS.dropout)
@@ -108,7 +108,7 @@ class FlatAutoEncoder(AutoEncoder):
             Tensor of output
           """
 
-          network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
+          network_input = input_seq_pl #simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
 
           if(FLAGS.reccurent == False):
               last_output = network_input[:,0,:]

@@ -4,7 +4,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 import time
-from utils.data import read_all_the_data, read_bvh_file # read_test_seq_from_binary
+from utils.data import read_all_the_data, read_bvh_file, add_noise # read_test_seq_from_binary
 from utils.flags import FLAGS
 # import class for both architectures of AE
 from FlatAE import FlatAutoEncoder, loss_reconstruction
@@ -90,6 +90,9 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
             exit(1)
 
         ae_shape = [FLAGS.frame_size * FLAGS.amount_of_frames_as_input] + ae_hidden_shapes + [FLAGS.frame_size * FLAGS.amount_of_frames_as_input] # Do not take fingers as an input
+
+        #CHECK JUDITH network
+        #ae_shape = [FLAGS.frame_size * FLAGS.amount_of_frames_as_input, 300, 100, 300,FLAGS.frame_size * FLAGS.amount_of_frames_as_input] # Do not take fingers as an input
 
         # Create an autoencoder
         ae  = FlatAutoEncoder(ae_shape, sess, batch_size, variance,data_info)
@@ -262,17 +265,19 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                       # Saver for the model
                       # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                       save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
+                      print("The model was saved in file: %s" % save_path)
 
               if(epoch%10==0):
-                  rmse = test(ae, FLAGS.data_dir + '/test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
-                              mean_pose)
+		  rmse = test(ae, FLAGS.data_dir + '/../test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
+                              mean_pose, data_info)
                   print("\nOur RMSE for the jump is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
-                              mean_pose)
+                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
+                              mean_pose, data_info)
                   print("\nOur RMSE for the run stop is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
-                              mean_pose)
+                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
+                              mean_pose, data_info)
                   print("\nOur RMSE for the breakdance is : ", rmse)
+
             step += 1
 
             
@@ -280,8 +285,6 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
           if not FLAGS.Early_stopping:
             # Save for the model
             save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
-          print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
-          print("The final model was saved in file: %s" % save_path)
         finally:
           # When done, ask the threads to stop.
           coord.request_stop()
@@ -292,6 +295,8 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
     duration = (time.time() - start_time)/ 60 # in minutes, instead of seconds
 
     print("The training was running for %.3f  min" % (duration))
+    print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
+    print("The final model was saved in file: %s" % save_path)
 
     # SAve the results
     f = open(FLAGS.results_file, 'a')
@@ -303,7 +308,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
     return ae
 
     
-def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
+def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, data_info, extract_middle_layer=False):
    with ae.session.graph.as_default() as sess:
     sess = ae.session
     chunking_stride = FLAGS.chunking_stride
@@ -355,14 +360,10 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
     # Go over all batches one by one
     for batch_numb in range(numb_of_batches):
         output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                      feed_dict={ae._valid_input_: batches[batch_numb],
+                                      feed_dict={ae._valid_input_: add_noise(batches[batch_numb], FLAGS.variance_of_noise, data_info._data_sigma).eval(session=ae.session),
                                       ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, False)})
 
-        # Take known values into account
-        new_result = use_existing_markers(batches[batch_numb], output_batch, mask, FLAGS.defaul_value)#.eval(session=sess)
-
-       
-        output_batches = np.append(output_batches, [new_result],axis=0) if output_batches.size else np.array([new_result])
+        output_batches = np.append(output_batches, [output_batch],axis=0) if output_batches.size else np.array([output_batch])
 
     #print('Postprocess...')
     if (FLAGS.reccurent):
@@ -388,14 +389,13 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
         error_real = error * mask_column[np.newaxis,:]
         amount_of_vals = np.count_nonzero(error_real)
         squared_error_sum = np.sum(error_real ** 2)
-        rmse = np.sqrt(squared_error_sum / amount_of_vals)        
+        rmse = np.sqrt(squared_error_sum / amount_of_vals)
     else:
         rmse = np.sqrt(((error) ** 2).mean()) * ae.scaling_factor
 
 
     # Write_the_result_into_file
-    hips_actual = np.tile(hips[:new_size,:], (1,32))
-    result = reconstructed[0:new_size] + hips_actual
+    result = reconstructed[0:new_size] + np.tile(hips[0:new_size], (1,32))
     np.savetxt(output_seq_file_name, result, fmt='%.5f', delimiter=' ')
     print('And write an output into the file ' + output_seq_file_name + '...')
 
@@ -478,7 +478,7 @@ def get_the_data():
 
   return data, max_val,mean_pose
 
-def ignore_left_hand(input_position):
+def ignore_right_hand(input_position):
   """ Reduce all the vectore to the one without right_hand
 
   Args:
@@ -487,40 +487,9 @@ def ignore_left_hand(input_position):
     position_wo_r_hand : position, where right hand is ignored and dimension is reduced
   """
   
-  coords_before_right_arm = input_position[:, 0 : 10*3]
-  coords_after_right_arm = input_position[:, 16*3 :]
+  coords_before_right_arm = input_position[:, 0 : 21]
+  coords_after_right_arm = input_position[:, 33 : 66]
   position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
-
-  return position_wo_r_hand
-
-def ignore_both_hands(input_position):
-  """ Reduce all the vectore to the one without right_hand
-
-  Args:
-    input_position: full body position
-  Returns:
-    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
-  """
-  
-  coords_before_right_arm = input_position[:, 0 : 9*3]
-  coords_after_right_arm = input_position[:, 22*3 :]
-  position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
-
-  return position_wo_r_hand
-
-def ignore_left_part(input_position):
-  """ Reduce all the vectore to the one without right_hand
-
-  Args:
-    input_position: full body position
-  Returns:
-    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
-  """
-  
-  coords_before_left_arm = input_position[:, 0 : 9*3]
-  coords_after_left_arm = input_position[:, 16*3:22*3]
-  coords_after_left_leg = input_position[:, 27*3:]
-  position_wo_r_hand = np.concatenate((coords_before_left_arm, coords_after_left_arm, coords_after_left_leg), axis=1)
 
   return position_wo_r_hand
 
@@ -541,18 +510,14 @@ if __name__ == '__main__':
       mean_pose = np.tile(mean_pose, FLAGS.amount_of_frames_as_input)'''
 
   # DEBUG
-  original_input, hips = read_bvh_file(FLAGS.data_dir + '/test_seq/127_05.bvh')  # read_test_seq_from_binary(input_seq_file_name)
-  '''result = np.concatenate((global_coords, original_input), axis=1)
+  '''original_input, global_coords = read_bvh_file(FLAGS.data_dir + '/test_seq/102_05.bvh')  # read_test_seq_from_binary(input_seq_file_name)
+  result = np.concatenate((global_coords, original_input), axis=1)
   np.savetxt(FLAGS.data_dir + '/output.bvh', result, fmt='%.5f', delimiter=' ')
-  print('Write an actual data into the file ' + FLAGS.data_dir + '/output.bvh' + '...')'''
-
-  no_hand = ignore_left_part(original_input)
-  hips_no_hand = np.tile(hips, (1,20))
-  result = no_hand + hips_no_hand
-
-  #result = original_input + hips_actual
-  np.savetxt(FLAGS.data_dir + '/no_left.bvh', result, fmt='%.5f', delimiter=' ')
-  print('And write an output without into the file ' + FLAGS.data_dir + '/no_left.bvh' + '...')
+  print('Write an actual data into the file ' + FLAGS.data_dir + '/output.bvh' + '...')
+  no_hand = ignore_right_hand(original_input)
+  result = np.concatenate((global_coords, no_hand), axis=1)
+  np.savetxt(FLAGS.data_dir + '/no_hand.bvh', result, fmt='%.5f', delimiter=' ')
+  print('And write an output without into the file ' + FLAGS.data_dir + '/no_hand.bvh' + '...')'''
 
 
   # Train the network
@@ -561,13 +526,13 @@ if __name__ == '__main__':
   # TEST it
   #rmse = test(ae, FLAGS.data_dir + '/boxing.binary', max_val, mean_pose)
   #print("\nOur RMSE for boxing is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
                               mean_pose)
   print("\nOur RMSE for the jump is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
                               mean_pose)
   print("\nOur RMSE for the run stop is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
                               mean_pose)
   print("\nOur RMSE for the breakdance is : ", rmse)
 

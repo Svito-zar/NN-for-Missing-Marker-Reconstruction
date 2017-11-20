@@ -12,7 +12,7 @@ from flags import FLAGS
 import os
 
 import sys # for adding a python module from the folder
-import btk
+#import btk
 import numpy as np
 from flags import *
 
@@ -20,6 +20,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 sys.path.append('/home/taras/Dropbox/Taras/2017_PhD_at_KTH/Code/Git/AppliedProbabilisticMachineLearningRPL/DAE-for-Representation-Learning/BVH_format/parser')
+#sys.path.append('/home/taras/Documents/Code/Git/AppliedProbabilisticMachineLearningRPL/DAE-for-Representation-Learning/BVH_format/parser')
 from reader import MyReader
 
 class DataSet(object):
@@ -229,7 +230,7 @@ def read_c3d_file(file_name):
 
     # Calculate max_val
     max = np.amax(np.absolute(mocap_seq))
-    if(max > 1000000):
+    if(max > 100000):
         print("\nWATCH! The file ", file_name, " had maximal value ", max, "\n")
 
     return mocap_seq
@@ -332,7 +333,7 @@ def read_a_folder(curr_dir):
     for sub_dir in os.listdir(curr_dir):
         print(sub_dir)
         for filename in os.listdir(curr_dir + '/' + sub_dir):
-            curr_sequence = read_c3d_file(curr_dir + '/' + sub_dir + '/' + filename)
+            curr_sequence,_ = read_bvh_file(curr_dir + '/' + sub_dir + '/' + filename)
 
             ''''# Move to TfRecords
             print(curr_sequence)
@@ -352,7 +353,7 @@ def read_a_folder(curr_dir):
 
         print(data.shape)
 
-        if(data.shape[0]>10):
+        if(data.shape[0]>10000):
             break
 
     data = np.array(data)
