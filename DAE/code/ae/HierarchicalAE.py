@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import tensorflow as tf
 from utils.flags import FLAGS
-from utils.data import  add_noise, loss_reconstruction, read_c3d_file
+from utils.data import  add_noise, loss_reconstruction
 from AE import AutoEncoder, simulate_missing_markets, use_existing_markers
 #from train import DataInfo
 

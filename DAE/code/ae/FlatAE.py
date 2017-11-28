@@ -3,9 +3,9 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from utils.data import  read_c3d_file, add_noise, loss_reconstruction
+from utils.data import add_noise, loss_reconstruction
 from utils.flags import FLAGS
-from AE import AutoEncoder, use_existing_markers, simulate_missing_markets
+from AE import AutoEncoder, simulate_missing_markets
 
 class FlatAutoEncoder(AutoEncoder):
   """Generic deep autoencoder.

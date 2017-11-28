@@ -94,12 +94,13 @@ class AutoEncoder(object):
       r_leg = np.array([22, 23, 24, 25, 26])
       l_leg = np.array([27, 28, 29, 30, 31])
 
+      arms = np.array([10, 11, 12, 13, 14, 21])
+      
       if(train_flag):
           # Define all the body parts
-          body_parts = [r_arm, l_arm, r_leg, l_leg]
+          body_parts = [r_arm, l_arm, r_leg, l_leg, arms]
       else:
           # Define just one body part
-          arms = np.array([10, 11, 12, 13, 14, 21])
           body_parts = [r_arm]
 
       # initialize mask
@@ -116,7 +117,7 @@ class AutoEncoder(object):
 
           Left_part = False
           
-          if(Left_part and not train_flag):
+          if(Left_part and missing_body_part[0]==10):
             # Choose a random body part
             missing_body_part = r_leg
 
