@@ -3,9 +3,9 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from utils.data import add_noise, loss_reconstruction
+from utils.data import  read_c3d_file, add_noise, loss_reconstruction
 from utils.flags import FLAGS
-from AE import AutoEncoder, simulate_missing_markets
+from AE import AutoEncoder, use_existing_markers, simulate_missing_markets
 
 class FlatAutoEncoder(AutoEncoder):
   """Generic deep autoencoder.
@@ -74,6 +74,7 @@ class FlatAutoEncoder(AutoEncoder):
 
         # Declare a mask for simulating missing_values
         self._mask = tf.placeholder(dtype=tf.float32, shape = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input], name = 'Mask_of_mis_markers')
+        self._mask_generator = self.binary_random_matrix_generator(FLAGS.missing_rate)
 
         # 1 - Setup network for TRAINing
         self._input_  = add_noise(self._train_batch , variance_coef, data_info._data_sigma)
@@ -108,7 +109,10 @@ class FlatAutoEncoder(AutoEncoder):
             Tensor of output
           """
 
-          network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
+          if (FLAGS.missing_markers_are_random):
+            network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
+          else:
+            network_input = remove_right_hand(input_seq_pl)
 
           if(FLAGS.reccurent == False):
               last_output = network_input[:,0,:]
@@ -141,7 +145,6 @@ class FlatAutoEncoder(AutoEncoder):
           #print('The final result has a shape:', output.shape)
 
           tf.get_variable_scope().reuse_variables() # so that we can use the same LSTM both for training and testing
-
 
           return output
 

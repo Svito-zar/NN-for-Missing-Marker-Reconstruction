@@ -4,7 +4,6 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 from utils.flags import FLAGS
-import random
 
 
 class AutoEncoder(object):
@@ -76,67 +75,25 @@ class AutoEncoder(object):
 
           return input_seq_pl
 
-  def binary_random_matrix_generator(self, prob_of_missing, train_flag):
+  def binary_random_matrix_generator(self, prob_of_missing):
       """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
 
         Args:
           prob_of_missing: probability to have a missing marker
-          train_flag:  indicator if we are in the training or testing
         Returns:
           mask : binary matrix to be multiplied on input in order to simulate missing markers
       """
 
+      random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
       tensor_size = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input]
 
-      # use 10 to color only the spine, 16 - spine and right hand, 22 - spine and both arms, 27 - all except left leg, 32 - all
-      r_arm = np.array([10, 11, 12, 13, 14, 15])
-      l_arm = np.array([16, 17, 18, 19, 20, 21])
-      r_leg = np.array([22, 23, 24, 25, 26])
-      l_leg = np.array([27, 28, 29, 30, 31])
+      # Make sure that all coordinates of each point are either missing or present
+      random_missing_points = tf.random_uniform(random_size)
+      stacked_coords = tf.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+      random_missing_coords = tf.reshape(stacked_coords, [tf.shape(stacked_coords)[0], tf.shape(stacked_coords)[1], -1])
 
-      arms = np.array([10, 11, 12, 13, 14, 21])
-      
-      if(train_flag):
-          # Define all the body parts
-          body_parts = [r_arm, l_arm, r_leg, l_leg, arms]
-      else:
-          # Define just one body part
-          body_parts = [r_arm]
-
-      # initialize mask
-      mask = np.ones(tensor_size)
-
-      # Generate missing markers matrix for each sequence in the batch
-      for sequence in range(FLAGS.batch_size):
-          # Choose a random body part
-          missing_body_part = random.choice(body_parts)
-
-          # create binary raw
-          prev_data = np.ones([FLAGS.chunk_length, missing_body_part[0]*3] ) # we ignore FLAGS.amount_of_frames_as_input for now
-          missing_data = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
-
-          Left_part = False
-          
-          if(Left_part and missing_body_part[0]==10):
-            # Choose a random body part
-            missing_body_part = r_leg
-
-            # create binary raw
-            prev_data_2 = np.ones([FLAGS.chunk_length, missing_body_part[0]*3 - (r_arm[-1]+1)*3] ) # we ignore FLAGS.amount_of_frames_as_input for now
-            missing_data_2 = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
-
-            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
-            mask_for_seq = np.concatenate((prev_data, missing_data,prev_data_2, missing_data_2,next_data), axis = 1)
-            
-          else:
-            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
-            mask_for_seq = np.concatenate((prev_data, missing_data,next_data), axis = 1)
-
-          if (FLAGS.amount_of_frames_as_input > 1):
-              mask_for_seq = np.tile(mask_for_seq, (1,FLAGS.amount_of_frames_as_input))
-
-          # Add this raw to the binary mask
-          mask[sequence] = mask_for_seq
+      mask = tf.where(random_missing_coords < 1 - prob_of_missing,
+                      tf.ones(tensor_size), tf.zeros(tensor_size))
 
       return mask
 
@@ -175,23 +132,21 @@ class AutoEncoder(object):
     return y
 
 def remove_right_hand(input_position):
-  """ Remove the coordinates of the right hand from the sequence frame
+  """ Set all the coordinates for the right hand to 0
 
   Args:
     input_position: full body position
   Returns:
-    position_wo_r_hand : position, where right hand was removed (now - smaller dimensionality)
+    position_wo_r_hand : position, where right hand is nulified
   """
-
-  # Define just one body part
-  missing_body_part = np.array([7, 8, 9, 10]) - 1 # right arm
 
   # Go over all the frames in the input
   for frame_id in range(FLAGS.amount_of_frames_as_input):
     offset = FLAGS.frame_size * frame_id
-    coords_before_right_arm = input_position[:,:, 0 + offset : missing_body_part[0] * 3 + offset ]
-    coords_after_right_arm = input_position[:,:, (missing_body_part[-1] + 1) + offset : 66 + offset]
-    frame_wo_r_hand = tf.concat((coords_before_right_arm, coords_after_right_arm), axis=2)
+    coords_before_right_arm = input_position[:,:, 0 + offset : 18 + offset ]
+    coords_after_right_arm = input_position[:,:, 30 + offset : 66 + offset]
+    zeros_for_right_arm =  [[[0 for i in range(12)] for j in range(FLAGS.chunk_length)] for k in range(FLAGS.batch_size)]
+    frame_wo_r_hand = tf.concat((coords_before_right_arm, zeros_for_right_arm, coords_after_right_arm), axis=2)
     # add next frame with r hand nullified to the resulting position
     if(frame_id) == 0:
       position_wo_r_hand = frame_wo_r_hand

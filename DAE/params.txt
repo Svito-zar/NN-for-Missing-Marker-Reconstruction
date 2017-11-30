@@ -1,3 +1,0 @@
--dropout 1
--dropout 0.9
--droput 0.8

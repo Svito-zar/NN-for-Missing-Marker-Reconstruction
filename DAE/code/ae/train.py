@@ -4,12 +4,12 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 import time
-from utils.data import read_all_the_data, read_bvh_file # read_test_seq_from_binary
+from utils.data import read_all_the_data, read_c3d_file, read_test_seq_from_binary
 from utils.flags import FLAGS
 # import class for both architectures of AE
 from FlatAE import FlatAutoEncoder, loss_reconstruction
 from HierarchicalAE import HierarchicalAE
-from AE import use_existing_markers
+from AE import use_existing_markers,simulate_missing_markets
 
 class DataInfo(object):
   """Information about the datasets
@@ -31,7 +31,7 @@ class DataInfo(object):
     self._eval_shape = eval_shape
     self._max_val = max_val
 
-def learning(data, max_val, learning_rate, batch_size, dropout):
+def learning(restore, data, max_val, learning_rate, batch_size, dropout):
   """ Unsupervised training of the autoencoder
 
   Returns:
@@ -96,7 +96,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         print('\nFlat AE was created : ', ae_shape)
 
 
-    if(FLAGS.restore and pretrain):
+    if(restore and pretrain):
       print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
       exit(1)
 
@@ -118,6 +118,9 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         tvars = tf.trainable_variables()
         grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars),   1e12)
         train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
+
+        # Create a saver
+        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
 
         # Prepare for making a summary for TensorBoard
         train_error =tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
@@ -161,12 +164,9 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
           # Initialize variables
           sess.run(tf.global_variables_initializer())
 
-        # Create a saver
-        saver = tf.train.Saver()  # saver = tf.train.Saver(variables_to_save)
-
         #restore model, if needed
-        if(FLAGS.restore):
-          chkpt_file = FLAGS.chkpt_dir+'/chkpt-'+str(FLAGS.chkpt_num)
+        if(restore):
+          chkpt_file = FLAGS.chkpt_dir+'/chkpt-56730'
           saver.restore(sess, chkpt_file)
           print("Model restored from the file "+str(chkpt_file) + '.')
 
@@ -208,7 +208,6 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
               train_error_ = loss_value
             
           step = 0
-
           
           # Train the whole network jointly
           print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for', FLAGS.training_epochs, ' epochs...')
@@ -219,11 +218,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
           while not coord.should_stop():
 
-            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, True)})
+            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae._mask_generator.eval(session=ae.session)})
             # For FLAT I would add ae._keep_prob: dropout into the feed_dict
             train_error_ = loss_value
 
             if (step % num_batches == 0):
+  	      rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+  	      print("\nOur RMSE for boxing is : ", rmse)
+              
               epoch = step * 1.0 / num_batches
               # Write summary
               train_summary = sess.run(train_summary_op, feed_dict={train_error: np.sqrt(train_error_)}) # provide a value for a tensor with a train value
@@ -234,24 +236,13 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
               error_str = "%) |{0:5.2f}".format(train_error_)[:10] + "|"
               print(epoch_str, percent_str,error_str) #output)
 
-              if (epoch % 2 == 0):
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the jump is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the run stop is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the breakdance is : ", rmse)
-
               if (epoch > 0):
                   summary_writer.add_summary(train_summary, step)
 
                   #Evaluate on the validation sequences
                   error_sum=0
                   for valid_batch in range(num_valid_batches):
-                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, False)})
+                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask:  ae._mask_generator.eval(session=ae.session)})
                     error_sum += curr_err[0]
                   new_error = error_sum / (num_valid_batches)
                   eval_sum = sess.run(eval_summary_op, feed_dict={eval_error: np.sqrt(new_error)})
@@ -275,7 +266,6 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                       save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
 
             step += 1
-
             
         except tf.errors.OutOfRangeError:
           if not FLAGS.Early_stopping:
@@ -295,8 +285,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
     print("The training was running for %.3f  min" % (duration))
 
     # SAve the results
-    f = open(FLAGS.results_file, 'a')
-    f.write('\n For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
+    if (FLAGS.reccurent):
+        f = open(FLAGS.results_file, 'a')
+        f.write('\nRecurrent AE For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
+            FLAGS.network_width) + ' and depth : ' + str(FLAGS.num_hidden_layers) + ' LR: ' + str(
+            FLAGS.learning_rate) + ' results in test error: ' + str.format("{0:.5f}", np.sqrt(new_error)))
+    else:
+        f = open(FLAGS.results_file + 'no_rnn', 'a')
+        f.write('\nSimple AE For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
             FLAGS.network_width) + ' and depth : ' + str(FLAGS.num_hidden_layers) + ' LR: ' + str(
             FLAGS.learning_rate) + ' results in test error: ' + str.format("{0:.5f}", np.sqrt(new_error)))
     f.close()
@@ -304,7 +300,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
     return ae
 
     
-def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
+def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
    with ae.session.graph.as_default() as sess:
     sess = ae.session
     chunking_stride = FLAGS.chunking_stride
@@ -313,32 +309,26 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
     #                    GET THE DATA
         
     # get input sequnce
-    original_input, hips = read_bvh_file(input_seq_file_name)  # read_test_seq_from_binary(input_seq_file_name)
-
+    #print('\nRead a test sequence from the file',input_seq_file_name,'...')
+    original_input = read_test_seq_from_binary(input_seq_file_name)
+    
     #print('Preprocess...')
-    coords_minus_mean = original_input - mean_pose[np.newaxis,:FLAGS.frame_size]
+    coords_minus_mean = original_input - mean_pose[np.newaxis,:]
     eps=1e-15
-    coords_normalized =np.divide(coords_minus_mean,max_val[np.newaxis,:FLAGS.frame_size]+eps)
+    coords_normalized =np.divide(coords_minus_mean,max_val[np.newaxis,:]+eps)
 
     if(coords_normalized.shape[0] < ae.sequence_length):
-        mupliplication_factor = int(ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+        mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
         # Pad the sequence with itself in order to fill the batch completely
-        coords_normalized = np.tile(coords_normalized, (mupliplication_factor,1))
+        coords_normalized = np.tile(coords_normalized, mupliplication_factor)
         print("Test sequence was way to short!")
 
     # Split it into chunks
-    if(FLAGS.reccurent):
-        all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
-                               xrange(0, len(coords_normalized)-ae.sequence_length + 1, chunking_stride)]) # Split sequence into chunks
-    else:
-        all_chunks = np.array([np.array(coords_normalized[i:i + FLAGS.amount_of_frames_as_input, :]) for i in
-                               xrange(0, len(coords_normalized)-FLAGS.amount_of_frames_as_input, chunking_stride)])
+    all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in xrange(0, len(original_input)-ae.sequence_length + 1, chunking_stride)]) # Split sequence into chunks
 
-    original_size = all_chunks.shape#[0]
+    original_size = all_chunks.shape[0]
 
-    all_chunks = np.reshape(all_chunks, (original_size[0], FLAGS.chunk_length,-1))
-
-    if (original_size[0] < ae.batch_size):
+    if (original_size < ae.batch_size):
         mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
         # Pad the sequence with itself in order to fill the batch completely
         all_chunks = np.tile(all_chunks, (mupliplication_factor,1,1))
@@ -355,36 +345,15 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
 
     # Go over all batches one by one
     for batch_numb in range(numb_of_batches):
-        output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                      feed_dict={ae._valid_input_: batches[batch_numb],
-                                      ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, False)})
-
+        output_batch, mask = sess.run([ae._valid_output, ae._mask], feed_dict={ae._valid_input_: batches[batch_numb],
+                                                                ae._mask:ae._mask_generator.eval(session=sess)})
         # Take known values into account
         new_result = use_existing_markers(batches[batch_numb], output_batch, mask, FLAGS.defaul_value)#.eval(session=sess)
 
-        #print(new_result.shape)
-
-        #DEBUG
-        #new_result=batches[batch_numb]
-
-        #new_result = simulate_missing_markets(batches[batch_numb] , mask, FLAGS.defaul_value).eval(session = ae.session)
-
-        #print(new_result.shape)
-  
         output_batches = np.append(output_batches, [new_result],axis=0) if output_batches.size else np.array([new_result])
 
-        #print(output_batches.shape)
-
-    #print(output_batches.shape)
     #print('Postprocess...')
-    if (not FLAGS.reccurent):
-      output_batches = np.reshape(output_batches,(output_batches.shape[0],FLAGS.batch_size,FLAGS.amount_of_frames_as_input,FLAGS.frame_size))
-      #print(output_batches.shape)
     output_sequence = reshape_from_batch_to_sequence(output_batches)
-    #print(output_sequence.shape)
-    #else:
-    #    # reshape_from_few_frames_to_single
-    #    output_sequence = np.reshape(output_batches,(-1,FLAGS.frame_size))
 
     if(extract_middle_layer):
       return output_sequence
@@ -392,34 +361,16 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
     reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
     #              CALCULATE the error for our network
-    new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
+    new_size = np.fmin(reconstructed.shape[0],original_input.shape[0])
+    error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
+    rmse = np.sqrt(((error[error>0.000000001]) ** 2).mean()) # take into account only missing markers
 
-    #DEBUG
-    new_size = int(new_size/2)
-
-    error = (reconstructed[0:new_size] - original_input[0:new_size])
-    #print(error)
-    if(not FLAGS.missing_markers_are_random):
-        # Define just one body part
-        '''r_arm = np.array([7, 8, 9, 10])
-        missing_part  = r_arm
-        error_real = (error[:,(missing_part[0]-1)*3:missing_part[-1]*3])'''
-        mask_column = 1 - ae.binary_random_matrix_generator(FLAGS.missing_rate, False)[0,0,:FLAGS.frame_size]
-        error_real = error * mask_column[np.newaxis,:]
-        amount_of_vals = np.count_nonzero(error_real)
-        squared_error_sum = np.sum(error_real ** 2)
-        rmse = np.sqrt(squared_error_sum / amount_of_vals)        
-    else:
-        rmse = np.sqrt(((error) ** 2).mean()) * ae.scaling_factor
-
-
-    # Write_the_result_into_file
-    hips_actual = np.tile(hips[:new_size,:], (1,32))
-    result = reconstructed[0:new_size] + hips_actual
-    np.savetxt(output_seq_file_name, result, fmt='%.5f', delimiter=' ')
-    print('And write an output into the file ' + output_seq_file_name + '...')
+    output_bvh_file_name = FLAGS.data_dir+'/result.txt'
+    np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
+    #print('And write an output into the file ' + output_bvh_file_name + '...')
 
     return rmse
+
 
 def reshape_from_batch_to_sequence(input_batch):
     '''
@@ -431,10 +382,7 @@ def reshape_from_batch_to_sequence(input_batch):
 
     # Get the data from the Flags
     chunking_stride = FLAGS.chunking_stride
-    if(FLAGS.reccurent):
-      sequence_length = FLAGS.chunk_length
-    else:
-      sequence_length = FLAGS.amount_of_frames_as_input
+    sequence_length = FLAGS.chunk_length
 
     # Reshape batches
     input_chunks = input_batch.reshape(-1, input_batch.shape[2], input_batch.shape[3])
@@ -442,18 +390,12 @@ def reshape_from_batch_to_sequence(input_batch):
 
     # Map from overlapping windows to non-overlaping
     # Take first chunk as a whole and the last part of each other chunk
-    # Take first chunk as a whole and the last part of each other chunk
-
-    input_non_overlaping = input_chunks[0][0:chunking_stride]
-    for i in range(1, numb_of_chunks-1, 1):
+    input_non_overlaping = input_chunks[0]
+    for i in range(1, numb_of_chunks, 1):
         input_non_overlaping = np.concatenate(
-            (input_non_overlaping, input_chunks[i][0:chunking_stride][:]),
+            (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
             axis=0)
-    input_non_overlaping = np.concatenate(
-        (input_non_overlaping, input_chunks[numb_of_chunks-1][0:sequence_length][:]),
-        axis=0)
-
-
+    input_non_overlaping = np.array(input_non_overlaping)
 
     # Flaten it into a sequence
     flat_sequence = input_non_overlaping.reshape(-1, input_non_overlaping.shape[-1])
@@ -473,10 +415,10 @@ def convert_back_to_3d_coords(sequence, max_val, mean_pose):
     '''
 
     # Convert it back from the [-1,1] to original values
-    reconstructed = np.multiply(sequence, max_val[np.newaxis, :FLAGS.frame_size] + 1e-15)
+    reconstructed = np.multiply(sequence, max_val[np.newaxis, :] + 1e-15)
     
     # Add the mean pose back
-    reconstructed = reconstructed + mean_pose[np.newaxis,:FLAGS.frame_size]
+    reconstructed = reconstructed + mean_pose[np.newaxis,:]
 
     #Unroll batches into the sequence
     reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
@@ -501,7 +443,7 @@ def get_the_data():
 
   return data, max_val,mean_pose
 
-def ignore_left_hand(input_position):
+def ignore_right_hand(input_position):
   """ Reduce all the vectore to the one without right_hand
 
   Args:
@@ -510,63 +452,17 @@ def ignore_left_hand(input_position):
     position_wo_r_hand : position, where right hand is ignored and dimension is reduced
   """
   
-  coords_before_right_arm = input_position[:, 0 : 10*3]
-  coords_after_right_arm = input_position[:, 16*3 :]
+  coords_before_right_arm = input_position[:, 0 : 24]
+  coords_after_right_arm = input_position[:, 36 : 72]
   position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
-
-  return position_wo_r_hand
-
-
-def ignore_one_hand(input_position):
-    """ Reduce all the vectore to the one without right_hand
-
-    Args:
-      input_position: full body position
-    Returns:
-      position_wo_r_hand : position, where right hand is ignored and dimension is reduced
-    """
-
-    coords_before_right_arm = input_position[:, 0: 10 * 3]
-    coords_after_right_arm = input_position[:, 16 * 3:]
-    position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
-
-    return position_wo_r_hand
-
-def ignore_both_hands(input_position):
-  """ Reduce all the vectore to the one without right_hand
-
-  Args:
-    input_position: full body position
-  Returns:
-    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
-  """
-  
-  coords_before_right_arm = input_position[:, 0 : 9*3]
-  coords_after_right_arm = input_position[:, 22*3 :]
-  position_wo_r_hand = np.concatenate((coords_before_right_arm, coords_after_right_arm), axis=1)
-
-  return position_wo_r_hand
-
-def ignore_left_part(input_position):
-  """ Reduce all the vectore to the one without right_hand
-
-  Args:
-    input_position: full body position
-  Returns:
-    position_wo_r_hand : position, where right hand is ignored and dimension is reduced
-  """
-  
-  coords_before_left_arm = input_position[:, 0 : 9*3]
-  coords_after_left_arm = input_position[:, 16*3:22*3]
-  coords_after_left_leg = input_position[:, 27*3:]
-  position_wo_r_hand = np.concatenate((coords_before_left_arm, coords_after_left_arm, coords_after_left_leg), axis=1)
 
   return position_wo_r_hand
 
 if __name__ == '__main__':
 
   print('DID YOU CHANGED THE TEST_FILE ?')
-
+ 
+  restore = False # TODO: bring to flags
   learning_rate = FLAGS.learning_rate
   batch_size = FLAGS.batch_size
   dropout = FLAGS.dropout # (keep probability) value
@@ -579,38 +475,23 @@ if __name__ == '__main__':
       max_val = np.tile(max_val,FLAGS.amount_of_frames_as_input)
       mean_pose = np.tile(mean_pose, FLAGS.amount_of_frames_as_input)
 
-  # DEBUG
-  original_input, hips = read_bvh_file(FLAGS.data_dir + '/../test_seq/127_05.bvh')  # read_test_seq_from_binary(input_seq_file_name)
-  '''result = np.concatenate((global_coords, original_input), axis=1)
-  np.savetxt(FLAGS.data_dir + '/output.bvh', result, fmt='%.5f', delimiter=' ')
-  print('Write an actual data into the file ' + FLAGS.data_dir + '/output.bvh' + '...')'''
-
-  #noisy_input= original_input +tf.random_normal(original_input.shape, 0.0, stddev = np.multiply(data.train.sigma, 0.15) + eps).eval()
-
-  no_hand = ignore_one_hand(original_input) # ignore_left_part(original_input)
-  hips_no_hand = np.tile(hips, (1,26))
-  result = no_hand + hips_no_hand
-
-  result = original_input + np.tile(hips, (1,32))
-  np.savetxt(FLAGS.data_dir + '/truth.bvh', result, fmt='%.5f', delimiter=' ')
-  print('And write an output without into the file ' + FLAGS.data_dir + '/no_arm.bvh' + '...')
-
+  # Create the dataset
+  '''dataset1 = tf.contrib.data.Dataset.from_tensor_slices(tf.random_uniform([4, 10]))
+  print(dataset1.output_types)  # ==> "tf.float32"
+  print(dataset1.output_shapes)  # ==> "(10,)"'''
 
   # Train the network
-  ae = learning(data, max_val, learning_rate, batch_size, dropout)
+  ae = learning(restore, data, max_val, learning_rate, batch_size, dropout)
 
   # TEST it
-  #rmse = test(ae, FLAGS.data_dir + '/boxing.binary', max_val, mean_pose)
-  #print("\nOur RMSE for boxing is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
-                              mean_pose)
-  print("\nOur RMSE for the jump is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
-                              mean_pose)
-  print("\nOur RMSE for the run stop is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
-                              mean_pose)
-  print("\nOur RMSE for the breakdance is : ", rmse)
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+  print("\nOur RMSE for boxing is : ", rmse)
+
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
+  print("\nOur RMSE for basketball is : ", rmse)
+
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+  print("\nOur RMSE for the jump turn is : ", rmse)
 
   # Close Tf session
   ae.session.close()
