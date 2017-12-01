@@ -1,8 +1,10 @@
-#Deep Autoencoder with TensorFlow for Represantation Learning of CMU MoCap dataset
+# Two Neural Network Approaches to Human Pose Reconstruction
 
-The goal of this project is to learn a mapping from the human posture to the robot posture, such that robot can convey a human emotion.
+About the branches:
 
-First we need to learn a good represation of the human motion. We will do it by Deep Autoencoder.
+Master - removing occlusion experiments
+missing_markers - random missing markers
+denoising - removing gaussian noise
 
 
 
