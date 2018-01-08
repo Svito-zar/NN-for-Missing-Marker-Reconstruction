@@ -20,10 +20,10 @@ class AutoEncoder(object):
     """Autoencoder initializer
 
     Args:
-      num_hidden_layers:          number of hidden layers
-      batch_size:     batch size
-      sequence_length: length of the sequence which will be feeded into LSTM as once
-      sess:           tensorflow session object to use
+      num_hidden_layers:   number of hidden layers
+      batch_size:          batch size
+      sequence_length:     length of the sequence which will be feeded into LSTM as once
+      sess:                tensorflow session object to use
     """
 
     self.__num_hidden_layers = num_hidden_layers
@@ -52,7 +52,7 @@ class AutoEncoder(object):
     self._train_batch = tf.train.shuffle_batch(train_frames, batch_size=FLAGS.batch_size, capacity=5000,
                                          min_after_dequeue=1000, name='Train_batch')
 
-    #### 2 - VALIDATE ###
+    #### 2 - VALIDATE, can be used as TEST ###
     self._valid_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._eval_shape)  # 1033 at home
     self._valid_data = tf.Variable(self._valid_data_initializer, trainable=False, collections=[],
                                    name='Valid_data')
@@ -76,19 +76,20 @@ class AutoEncoder(object):
 
           return input_seq_pl
 
-  def binary_random_matrix_generator(self, prob_of_missing, train_flag):
-      """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
+  def binary_random_matrix_generator(self, train_flag):
+      """ Generate a binary matrix with random values: 0s for missign markers and 1s otherwise
+          Each sequence will have a particular limb missing for all the time-steps
+          Different sequences may have different limb missing
 
         Args:
-          prob_of_missing: probability to have a missing marker
-          train_flag:  indicator if we are in the training or testing
+          train_flag:  indicator if we are in the training or testing phase
         Returns:
           mask : binary matrix to be multiplied on input in order to simulate missing markers
       """
 
       tensor_size = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input]
 
-      # use 10 to color only the spine, 16 - spine and right hand, 22 - spine and both arms, 27 - all except left leg, 32 - all
+      # use 10 to occlude only the spine, 16 - spine and right hand, 22 - spine and both arms, 27 - all except left leg, 32 - all
       r_arm = np.array([10, 11, 12, 13, 14, 15])
       l_arm = np.array([16, 17, 18, 19, 20, 21])
       r_leg = np.array([22, 23, 24, 25, 26])
@@ -202,6 +203,15 @@ def remove_right_hand(input_position):
 
 
 def simulate_missing_markets(input_position, mask, const):
+    """ Simulate missing markers, by multiplying input on the binary matrix
+
+      Args:
+        input_position: full body position
+        mask: binary matrix of missing values
+        const: constant to put in place of missing markers
+      Returns:
+        position_wo_r_hand : position, where right hand was removed (now - smaller dimensionality)
+    """
 
     output = tf.multiply(input_position, mask)
 

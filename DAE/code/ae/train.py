@@ -219,7 +219,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
           while not coord.should_stop():
 
-            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, True)})
+            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae.binary_random_matrix_generator(True)})
             # For FLAT I would add ae._keep_prob: dropout into the feed_dict
             train_error_ = loss_value
 
@@ -251,7 +251,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                   #Evaluate on the validation sequences
                   error_sum=0
                   for valid_batch in range(num_valid_batches):
-                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, False)})
+                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae.binary_random_matrix_generator(False)})
                     error_sum += curr_err[0]
                   new_error = error_sum / (num_valid_batches)
                   eval_sum = sess.run(eval_summary_op, feed_dict={eval_error: np.sqrt(new_error)})
@@ -357,7 +357,7 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
     for batch_numb in range(numb_of_batches):
         output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                       feed_dict={ae._valid_input_: batches[batch_numb],
-                                      ae._mask: ae.binary_random_matrix_generator(FLAGS.missing_rate, False)})
+                                      ae._mask: ae.binary_random_matrix_generator(False)})
 
         # Take known values into account
         new_result = use_existing_markers(batches[batch_numb], output_batch, mask, FLAGS.defaul_value)#.eval(session=sess)
@@ -404,7 +404,7 @@ def test(ae,input_seq_file_name, output_seq_file_name, max_val, mean_pose, extra
         '''r_arm = np.array([7, 8, 9, 10])
         missing_part  = r_arm
         error_real = (error[:,(missing_part[0]-1)*3:missing_part[-1]*3])'''
-        mask_column = 1 - ae.binary_random_matrix_generator(FLAGS.missing_rate, False)[0,0,:FLAGS.frame_size]
+        mask_column = 1 - ae.binary_random_matrix_generator(False)[0,0,:FLAGS.frame_size]
         error_real = error * mask_column[np.newaxis,:]
         amount_of_vals = np.count_nonzero(error_real)
         squared_error_sum = np.sum(error_real ** 2)

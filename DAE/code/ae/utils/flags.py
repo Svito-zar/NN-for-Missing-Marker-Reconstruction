@@ -45,7 +45,7 @@ flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
 
 # Flags about the missing markers
-flags.DEFINE_boolean('missing_markers_are_random', False ,' Whether we having missing markers at random positions, or the whole right hand')
+flags.DEFINE_boolean('missing_markers_are_random', False ,' Whether we having missing markers at random positions, or the whole body part')
 flags.DEFINE_float('missing_rate', 0.2, 'What fraction of the input is missing during the testing')
 flags.DEFINE_float('defaul_value', 0, 'What number we will put in place of the missing marker')
 
@@ -87,8 +87,6 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 flags.DEFINE_string('data_dir',#'/home/taras/storage/data(daz)',
                     '/home/taras/Documents/Datasets/MoCap/BVH/Raw',
-                    #'/home/taras/Documents/Datasets/CMU_c3d/Walk',
-                     #'/home/taras/Dropbox/Taras/2017_PhD_at_KTH/Datasets/CMU_c3d',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',

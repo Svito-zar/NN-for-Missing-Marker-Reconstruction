@@ -103,7 +103,7 @@ def read_a_folder(train_dir):
         Returns:
             data [N, sequnce_length, frame_size] - an array,containing preprocessed dataset
 
-      """
+    """
     chunk_length = FLAGS.chunk_length
     stride = FLAGS.chunking_stride
 
@@ -289,7 +289,7 @@ def read_all_the_data():
   """
     Reads all 3 datasets and their properties from binary file format
     
-    Will take them from the corresponding file in the folder set by FLAGS.data_dir
+    Will take them from the corresponding file in the folder, which is defined by FLAGS.data_dir
 
   """
   class DataSets(object):
@@ -335,7 +335,6 @@ def read_all_the_data():
 def write_test_seq_in_binary(input_file_name, output_file_name):
     # Datasets themselfs
     test_file = open(output_file_name, 'wb')
-    #test_seq = read_c3d_file(input_file_name)'''
     test_seq, _ = read_bvh_file(input_file_name)
     test_seq.tofile(test_file)
     test_file.close()
@@ -346,8 +345,6 @@ def read_test_seq_from_binary(binary_file_name):
     read_seq = np.fromfile(binary_file_name)
     # Reshape
     read_seq = read_seq.reshape(-1, FLAGS.frame_size)
-    #print("The test sequence was read from", binary_file_name)
-
     amount_of_frames = int(read_seq.shape[0] / (FLAGS.chunk_length * FLAGS.amount_of_frames_as_input))
     if(amount_of_frames > 0):
         # Clip array so that it divides exactly into the inputs we want (frame_size * amount_of_frames_as_input)
@@ -362,14 +359,12 @@ def loss_reconstruction(output, target, max_vals):
   """ Reconstruction error
 
   Args:
-    output: tensor of net output
-    target: tensor of net we are trying to reconstruct
+    output:    tensor of net output
+    target:    tensor of net we are trying to reconstruct
+    max_vals:  array of absolute maximal values in the dataset, is used for scaling an error to the original space
   Returns:
     Scalar tensor of mean eucledean distance
   """
-
-  #if (FLAGS.amount_of_frames_as_input > 1):
-  #    max_vals = np.tile(max_vals, FLAGS.amount_of_frames_as_input)
 
   with tf.name_scope("reconstruction_loss"):
       net_output_tf = tf.convert_to_tensor(tf.cast(output, tf.float32), name='input')
@@ -382,18 +377,6 @@ def loss_reconstruction(output, target, max_vals):
       return squared_error
 
 if __name__ == '__main__':
-    #write_binary()
-
-    #test = read_c3d_file \
-
-    '''write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/C3d/Test_seq/01_05.c3d',
-                             FLAGS.data_dir + '/climb.binary')
-    write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/C3d/Test_seq/06_02.c3d',
-                             FLAGS.data_dir + '/basketball.binary')
-    write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/C3d/Test_seq/14_01.c3d',
-                             FLAGS.data_dir + '/boxing.binary')'''
-
-    #test = read_c3d_file('/home/taras/Documents/Datasets/MoCap/Raw/train/14/14_10.c3d')
 
     Test_bvh = False
     if(Test_bvh):
@@ -418,5 +401,3 @@ if __name__ == '__main__':
 
     else:
         write_binary(True)
-    #result = read_test_seq_from_binary(FLAGS.data_dir + '/test_seq.binary')
-    #print(test.shape)

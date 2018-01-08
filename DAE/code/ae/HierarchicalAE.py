@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import tensorflow as tf
 from utils.flags import FLAGS
-from utils.data import  add_noise, loss_reconstruction
+from utils.data import  add_noise, loss_reconstruction #, read_c3d_file
 from AE import AutoEncoder, simulate_missing_markets, use_existing_markers
 #from train import DataInfo
 
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     ae = HierarchicalAE(FLAGS.network_width, FLAGS.num_hidden_layers, FLAGS.variance_of_noise, data_info, sess)
     print('\nHierarchical AE was created !')
 
-    test = read_c3d_file('/home/taras/Documents/Datasets/CMU_c3d/Walk/train/1/01_01.c3d')
+    '''test = read_c3d_file('/home/taras/Documents/Datasets/CMU_c3d/Walk/train/1/01_01.c3d')
 
     print(test.shape)
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
 
     ax.scatter(test[0][0:123:3], test[0][1:123:3], test[0][2:123:3], c='r', marker='o')
 
-    '''with sess.as_default():
+    with sess.as_default():
         ax.scatter(l_Arm[0][0][0:21:3].eval(), l_Arm[0][0][1:21:3].eval(), l_Arm[10][2][2:21:3].eval(),
                c='r', marker='o')
         ax.scatter(r_Arm[0][0][0:21:3].eval(), r_Arm[0][0][1:21:3].eval(), r_Arm[10][2][2:21:3].eval(),
@@ -308,4 +308,4 @@ if __name__ == '__main__':
     #ax.scatter(all_3d_coords[110][0][treshhold:43], all_3d_coords[10][1][treshhold:43],
      #          all_3d_coords[10][2][treshhold:43], c='b', marker='o')
 
-    plt.show()
+    #plt.show()
