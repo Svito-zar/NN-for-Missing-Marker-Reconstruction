@@ -16,14 +16,14 @@ FLAGS = flags.FLAGS
 """  							Fine-tuning Parameters 				"""
 
 # Flags about the sequence processing
-flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 16,'Stride for spliting sequences into the chunks')
-flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
+flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
+flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
 
 flags.DEFINE_float('learning_rate', 0.0005 ,
                    'learning rate for training .')
 
-flags.DEFINE_float('variance_of_noise', 0.05, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.00, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 
 # Constants
@@ -31,7 +31,7 @@ flags.DEFINE_integer('seed', 12345, 'Random seed')
 
 flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('batch_size', 64,
+flags.DEFINE_integer('batch_size', 32,
                      'Size of the mini batch')
 
 flags.DEFINE_integer('pretraining_epochs',5,
@@ -41,7 +41,7 @@ flags.DEFINE_integer('training_epochs', 150,
 
 # Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
-flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
+flags.DEFINE_integer('amount_of_frames_as_input', 10, 'Amount of frames used as input at each time step')
 
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
@@ -66,12 +66,12 @@ flags.DEFINE_float('delta_for_early_stopping', 0.1, 'How much worst the results 
 """ 							FLAT AE 			"""
 
 flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
-flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
+flags.DEFINE_integer('network_width', 1024, 'Number of units in each hidden layer ')
 
 
 """ 							Other parameters			"""
 
-flags.DEFINE_integer('middle_layer', 1,
+flags.DEFINE_integer('middle_layer', 0,
                      "Which hidden layer is view as a middle layer with the representation")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
@@ -85,8 +85,9 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/CMU_c3d/30k_new' ,
-                    # '/home/taras/Documents/storage/CMU_Mocap/C3D/60k_new',
+flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/Raw' ,
+                    #'/home/taras/Documents/Datasets/CMU_c3d/Walk',
+                     '/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
