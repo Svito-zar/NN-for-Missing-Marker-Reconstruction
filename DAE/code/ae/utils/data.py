@@ -6,7 +6,6 @@ from __future__ import print_function
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import sys # for adding a python module from the folder
-import btk
 import numpy as np
 from flags import *
 
@@ -17,11 +16,16 @@ sys.path.append('/home/taras/Dropbox/Taras/2017_PhD_at_KTH/Code/Git/AppliedProba
 from reader import MyReader
 
 class DataSet(object):
+  '''
+  A class for storing a dataset and all important information,
+  which might be needed during training,
+  such as batch size amount of epochs completed and so on.
+  '''
 
   def __init__(self, sequences, batch_size):
     self._batch_size = batch_size
     self._sequences = sequences             # all the sequnces in the dataset
-    self._num_chunks = sequences.shape[0]
+    self._num_sequences = sequences.shape[0]
     self._epochs_completed = 0
     self._index_in_epoch = 0
 
@@ -30,8 +34,8 @@ class DataSet(object):
     return self._sequences
 
   @property
-  def num_chunks(self):
-    return self._num_num_chunks
+  def num_sequences(self):
+    return self._num_sequences
 
   @property
   def epochs_completed(self):
@@ -41,11 +45,11 @@ class DataSet(object):
     """Return the next batch of sequences from this data set."""
     batch_numb = self._index_in_epoch
     self._index_in_epoch += self._batch_size
-    if self._index_in_epoch > self._num_chunks:
+    if self._index_in_epoch > self._num_sequences:
       # Finished epoch
       self._epochs_completed += 1
       # Shuffle the data
-      perm = np.arange(self._num_chunks)
+      perm = np.arange(self._num_sequences)
       np.random.shuffle(perm)
       self._sequences = self._sequences[perm]
       # Start next epoch
@@ -53,13 +57,19 @@ class DataSet(object):
       self._index_in_epoch = self._batch_size
     return self._sequences[batch_numb:batch_numb+self._batch_size:1, :]
 
+class DataSets(object):
+    '''
+      A class for storing Train and Eval datasets and all related information,
+      '''
+    pass
+
 def read_bvh_file(fileName, test=False):
     """
        Reads a file from CMU MoCap dataset in BVH format
 
        Returns:
-            sequence [sequence_length,frame_size] - local chanells transformed to the hips-centered coordinates
-            hips [frame_size] - coordinates of the hips
+            sequence [sequence_length,frame_size] - local channels transformed to the hips-centered coordinates
+            hips [frame_size]                     - coordinates of the hips
 
     """
 
@@ -79,7 +89,7 @@ def read_bvh_file(fileName, test=False):
     '''fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     treshhold = 22 # to show legs in a different color
-    # use 10 to color only the spine, 16 - spine and right hand, 22 - spine and both arms, 27 - all except left leg, 32 - all
+    # use treshhold 10 to color only the spine, 16 - spine and right hand, 22 - spine and both arms, 27 - all except left leg, 32 - all
     time_step = 100
     ax.scatter(sequence[time_step ][2][0:treshhold],sequence[time_step ][0][0:treshhold], sequence[time_step ][1][0:treshhold],
                c='r', marker='o')
@@ -139,13 +149,12 @@ def read_unlabeled_data(train_dir, evaluate):
         train_dir - address to the train, dev and eval datasets
         evaluate - flag : weather we want to evaluate a network or we just optimize hyper-parameters
     Returns:
-        datasets - object, containing Train, Dev and Eval datasets
+        datasets - object of class DataSets, containing Train and Eval datasets
         max_val - maximal value in the raw data ( for post-processing)
         mean_pose - mean pose in the raw data ( for post-processing)
 
   """
-  class DataSets(object):
-    pass
+
   data_sets = DataSets()
 
   # Get constants from the file
@@ -189,7 +198,7 @@ def read_unlabeled_data(train_dir, evaluate):
   train_data =np.divide(train_data,max_val[np.newaxis,np.newaxis,:]+eps)
   test_data =np.divide(test_data,max_val[np.newaxis,np.newaxis,:]+eps)
 
-  # Chech the data range
+  # Check the data range
   max_ = test_data.max()
   min_ = test_data.min()
 
@@ -203,7 +212,7 @@ def read_unlabeled_data(train_dir, evaluate):
   data_sets.train.sigma = np.std(train_data, axis=(0,1))
 
   # Check if we have enough data
-  if(data_sets.train._num_chunks < data_sets.train._batch_size):
+  if(data_sets.train._num_sequences < data_sets.train._batch_size):
       print('ERROR: We have got not enough data! Reduce batch_size or increase amount of subfolder you use.')
       exit(1)
   
@@ -214,9 +223,9 @@ def add_noise(x, variance_multiplier, sigma):
         Add Gaussian noise to the data
 
         Args:
-            x - input vector
+            x                   - input vector
             variance_multiplier - coefficient to multiple on, when we calculate a variance of the noise
-            sigma - variance of the dataset
+            sigma               - variance of the dataset
         Returns:
             x - output vector, noisy data
 
@@ -226,7 +235,7 @@ def add_noise(x, variance_multiplier, sigma):
   x = x + noise
   return x
 
-def write_binary(evaluate):
+def read_dataset_and_write_in_binary(evaluate):
   """
         Reads 3 datasets: "Train","Dev" and "Eval" from the CMU MoCap dataset in bvh format
         And write them in the binary format.
@@ -239,7 +248,7 @@ def write_binary(evaluate):
 
   """
 
-  #Get the data
+  # Read and preprocess all the datasets from the folder
   data, max_val,mean_pose = read_unlabeled_data(FLAGS.data_dir,evaluate)
 
   # Write all important information into binary files
@@ -285,17 +294,20 @@ def read_binary_dataset(dataset_name):
   dataset = dataset.reshape(amount_of_frames, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input)
   return dataset
 
-def read_all_the_data():
+def read_datasets_from_binary():
   """
-    Reads all 3 datasets and their properties from binary file format
+    Reads train and test datasets and their properties from binary file format
     
     Will take them from the corresponding file in the folder, which is defined by FLAGS.data_dir
 
-  """
-  class DataSets(object):
-    pass
-  data_sets = DataSets()
+    Returns:
+        datasets  - object of class DataSets, containing Train and Eval datasets
+        max_val   - maximal value in the raw data ( for post-processing)
+        mean_pose - mean pose in the raw data ( for post-processing)
 
+  """
+
+  data_sets = DataSets()
  
   #         #########             Get TRAIN data                  ###########
   
@@ -326,7 +338,7 @@ def read_all_the_data():
   mean_pose = np.fromfile(FLAGS.data_dir+'/mean.binary')
   
   # Check if we have enough data
-  if(data_sets.train._num_chunks < data_sets.train._batch_size):
+  if(data_sets.train._num_sequences < data_sets.train._batch_size):
       print('ERROR: We have got not enough data! Reduce batch_size or increase amount of subfolder you use.')
       exit(1)
   
@@ -341,7 +353,7 @@ def write_test_seq_in_binary(input_file_name, output_file_name):
     print("The test sequence was read from", input_file_name, " and written to", output_file_name)
 
 def read_test_seq_from_binary(binary_file_name):
-    # REad the sequence
+    # Read the sequence
     read_seq = np.fromfile(binary_file_name)
     # Reshape
     read_seq = read_seq.reshape(-1, FLAGS.frame_size)
@@ -372,16 +384,19 @@ def loss_reconstruction(output, target, max_vals):
       # Euclidean distance between net_output_tf,target_tf
       error = tf.subtract(net_output_tf, target_tf)
       # Convert it back from the [-1,1] to original values
-      error_scaled= tf.multiply(error, max_vals[np.newaxis, :] + 1e-15)
+      error_scaled = tf.multiply(error, max_vals[np.newaxis, :] + 1e-15)
       squared_error = tf.reduce_mean(tf.square(error_scaled))
       return squared_error
 
 if __name__ == '__main__':
 
-    Test_bvh = False
+    # Do some testing
+
+    Test_bvh = True
     if(Test_bvh):
 
-        result = read_bvh_file('/home/taras/Documents/Datasets/MoCap/BVH/Raw/train/32/32_02.bvh')
+        result = read_bvh_file('/home/taras/Documents/Datasets/CMU_Bvh/test_seq/85_02.bvh')
+        #/home/taras/Documents/Datasets/MoCap/BVH/Raw/train/32/32_02.bvh')
 
         new_file_name= '/home/taras/Documents/Data/cmuconvert-daz-01-09/01/no_hands.bvh'
 
@@ -396,8 +411,8 @@ if __name__ == '__main__':
                                  FLAGS.data_dir + '/basketball.binary')
         write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/BVH/test_seq/85_02.bvh',
                                  FLAGS.data_dir + '/salto.binary')
-        '''write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/Raw/Test_seq/14_01.c3d',
-         FLAGS.data_dir + '/boxing.binary')'''
+        write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/Raw/Test_seq/14_01.c3d',
+         FLAGS.data_dir + '/boxing.binary')
 
     else:
-        write_binary(True)
+        read_dataset_and_write_in_binary(True)
