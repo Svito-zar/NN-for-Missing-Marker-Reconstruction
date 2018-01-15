@@ -38,7 +38,7 @@ flags.DEFINE_integer('training_epochs', 100,
 flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
 flags.DEFINE_integer('chkpt_num' , 1016735, 'Number of the checkpoint')
 
-flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
+flags.DEFINE_boolean('evaluate', True,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
 flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise pretraining. It does not help much.')
 flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay')
@@ -81,7 +81,8 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 # Directories
 
 flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/CMU_Bvh/10k_64_new',
-                    '/home/taras/Documents/Datasets/MoCap/BVH/Raw',
+                    "/home/taras/Documents/Datasets/Test",
+                    #'/home/taras/Documents/Datasets/MoCap/BVH/Raw',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',

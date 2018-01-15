@@ -132,8 +132,6 @@ def read_a_folder(train_dir):
                 # Concatenate curr chunks to all of them
                 data = np.vstack([data, curr_chunks]) if data.size else np.array(curr_chunks)
 
-        print(data.shape)
-
         if(data.shape[0]>100000): # do not want to have more sequences
             break
 
@@ -167,7 +165,7 @@ def read_unlabeled_data(train_dir, evaluate):
     exit(0)
 
   #         #########             Get TRAIN data                  ###########
-  print('\nReading train data from the following folder ... ', data_dir )
+  print('\nReading train data from the following folder ... ', data_dir+'/train' )
   train_data = read_a_folder(data_dir+'/train')
 
   [amount_of_train_strings, seq_length, DoF] = train_data.shape
@@ -176,7 +174,7 @@ def read_unlabeled_data(train_dir, evaluate):
 
   #         #########             Get TEST data                  ###########
   
-  print('\nReading test data from the following folder : ' )
+  print('\nReading test data from the following folder : ' , data_dir+'/eval')
   if(evaluate):
     test_data = read_a_folder(data_dir+'/eval')
   else:
@@ -275,6 +273,8 @@ def read_dataset_and_write_in_binary(evaluate):
   mean_file = open(FLAGS.data_dir+'/mean.binary', 'wb')
   mean_pose.tofile(mean_file)
   mean_file.close()
+
+  print('All the binary files for the dataset was saved in the folder ', FLAGS.data_dir)
   
 def read_binary_dataset(dataset_name):
   """
@@ -392,7 +392,7 @@ if __name__ == '__main__':
 
     # Do some testing
 
-    Test_bvh = True
+    Test_bvh = False
     if(Test_bvh):
 
         result = read_bvh_file('/home/taras/Documents/Datasets/CMU_Bvh/test_seq/85_02.bvh')
