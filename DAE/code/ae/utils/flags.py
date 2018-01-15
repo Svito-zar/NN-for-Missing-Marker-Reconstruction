@@ -80,8 +80,8 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/CMU_Bvh/10k_64_new',
-                    "/home/taras/Documents/Datasets/Test",
+flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/BVH/10k_64L',
+                    #''/home/taras/Documents/Datasets/CMU_Bvh/10k_64_new',
                     #'/home/taras/Documents/Datasets/MoCap/BVH/Raw',
                     'Directory to put the training data.')
 
