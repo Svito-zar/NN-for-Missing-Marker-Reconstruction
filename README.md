@@ -1,12 +1,10 @@
 # Two Neural Network Approaches to Human Pose Reconstruction
 
-Adress all the question to Taras Kucherenko at tarask@kth.se
-
 This github has 3 branches with different experiments
 
-- master          - solving occlusion (Section 5.2.1)
-- missing_markers - random missing markers (Section 5.1)
-- denoising       - removing gaussian noise (Section 5.2.2)
+- master (current) - solving occlusion (in paper: Section 5.2.1)
+- missing_markers  - random missing markers (in paper: Section 5.1)
+- denoising        - removing gaussian noise (in paper: Section 5.2.2)
 
 Each branch will have a slightly different README file.
 
@@ -64,4 +62,4 @@ You can play around with the run options, including the neural net size and shap
 
 ## Contact
 
-Adress all the question to Taras Kucherenko at tarask@kth.se
+If you encounter any problems/bugs/issues please contact me on github or by emailing me at tarask@kth.se for any bug reports/questions/suggestions. I prefer questions and bug reports on github as that provides visibility to others who might be encountering same issues or who have the same questions.
