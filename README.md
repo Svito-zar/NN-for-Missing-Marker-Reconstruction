@@ -14,7 +14,7 @@ Each branch will have a slightly different README file.
 
 In my experiments I have been using CMU Mocap dataset. There are 2 options on how to get it:
 
-1. Download [already preprocessed dataset](https://www.dropbox.com/s/8y932cbfjghzbpy/10k_64L.tar?dl=0):
+1. Download [already preprocessed dataset](https://www.dropbox.com/s/ui6sttqpabb8581/train_folder.tar.gz?dl=0):
 
 
 
@@ -30,6 +30,7 @@ In my experiments I have been using CMU Mocap dataset. There are 2 options on ho
    - Preprocess it by running the script code/ae/utils/data.py
 
 Afterwards you need to put all test sequences you want to test on into the folder "test_seq", which should be in the same directory as the main folder with the data.
+You can take my sequences, I used in the paper [here](https://www.dropbox.com/s/xk05ap67pn9yzrr/test_seq.tar.gz?dl=0)
 
 So final configuration should look like this:
 
@@ -44,6 +45,10 @@ So final configuration should look like this:
 - variance.binary
 
 /test_seq
+- 14_01.bvh
+- 85_02.bvh
+- 102_03.bvh
+...
 '''
   
 
