@@ -4,7 +4,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 import time
-from utils.data import read_all_the_data, read_c3d_file, read_test_seq_from_binary
+from utils.data import read_all_the_data, visualize, read_test_seq_from_binary
 from utils.flags import FLAGS
 # import class for both architectures of AE
 from FlatAE import FlatAutoEncoder, loss_reconstruction
@@ -40,6 +40,8 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
 
     
   with tf.Graph().as_default() as g:
+
+    tf.set_random_seed(FLAGS.seed)
 
     start_time = time.time()
 
@@ -166,7 +168,7 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
 
         #restore model, if needed
         if(restore):
-          chkpt_file = FLAGS.chkpt_dir+'/chkpt-56730'
+          chkpt_file = FLAGS.chkpt_dir+'/chkpt-122175'#90500'# ,  #178578
           saver.restore(sess, chkpt_file)
           print("Model restored from the file "+str(chkpt_file) + '.')
 
@@ -204,7 +206,7 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
                   ae[ae._weights_str.format(n) + 'fixed'] = ae._w(n)
                   ae[ae._biases_str.format(n) + 'fixed'] = ae._b(n)
               
-              loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ae._keep_prob: dropout, ae._mask: ae._mask_generator.eval(session=ae.session)} )
+              loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ae._keep_prob: dropout, ae._mask: ae._mask_generator.eval(session=ae.session)})#ae._mask_generator.eval(session=ae.session)} )
               train_error_ = loss_value
             
           step = 0
@@ -218,13 +220,13 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
 
           while not coord.should_stop():
 
-            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae._mask_generator.eval(session=ae.session)})
+            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae._mask_generator.eval(session=ae.session)})#ae._mask_generator.eval(session=ae.session)})
             # For FLAT I would add ae._keep_prob: dropout into the feed_dict
             train_error_ = loss_value
 
             if (step % num_batches == 0):
   	      rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
-  	      print("\nOur RMSE for boxing is : ", rmse)
+  	      print("\nOur RMSE for salto is : ", rmse)
               
               epoch = step * 1.0 / num_batches
               # Write summary
@@ -239,10 +241,11 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
               if (epoch > 0):
                   summary_writer.add_summary(train_summary, step)
 
+
                   #Evaluate on the validation sequences
                   error_sum=0
                   for valid_batch in range(num_valid_batches):
-                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask:  ae._mask_generator.eval(session=ae.session)})
+                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae._mask_generator.eval(session=ae.session)})# ae._mask_generator.eval(session=ae.session)})
                     error_sum += curr_err[0]
                   new_error = error_sum / (num_valid_batches)
                   eval_sum = sess.run(eval_summary_op, feed_dict={eval_error: np.sqrt(new_error)})
@@ -264,6 +267,14 @@ def learning(restore, data, max_val, learning_rate, batch_size, dropout):
                       # Saver for the model
                       # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                       save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
+
+              if(epoch % 5 ==0):
+                  if not FLAGS.Early_stopping:
+                      # Save for the model
+                      save_path = saver.save(sess, FLAGS.chkpt_dir + '/chkpt',
+                                             global_step=step)  # `save` method will call `export_meta_graph` implicitly.
+                  print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
+                  print("The final model was saved in file: %s" % save_path)
 
             step += 1
             
@@ -311,6 +322,11 @@ def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False)
     # get input sequnce
     #print('\nRead a test sequence from the file',input_seq_file_name,'...')
     original_input = read_test_seq_from_binary(input_seq_file_name)
+
+    # JUST for a special test
+    original_input = original_input[480:570]
+
+    #visualize(original_input)
     
     #print('Preprocess...')
     coords_minus_mean = original_input - mean_pose[np.newaxis,:]
@@ -318,7 +334,7 @@ def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False)
     coords_normalized =np.divide(coords_minus_mean,max_val[np.newaxis,:]+eps)
 
     if(coords_normalized.shape[0] < ae.sequence_length):
-        mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+        mupliplication_factor = int(ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
         # Pad the sequence with itself in order to fill the batch completely
         coords_normalized = np.tile(coords_normalized, mupliplication_factor)
         print("Test sequence was way to short!")
@@ -345,8 +361,12 @@ def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False)
 
     # Go over all batches one by one
     for batch_numb in range(numb_of_batches):
+
+
+
         output_batch, mask = sess.run([ae._valid_output, ae._mask], feed_dict={ae._valid_input_: batches[batch_numb],
-                                                                ae._mask:ae._mask_generator.eval(session=sess)})
+                                                                ae._mask: binary_random_matrix_generator()}) #ae._mask_generator.eval(session=sess)})
+
         # Take known values into account
         new_result = use_existing_markers(batches[batch_numb], output_batch, mask, FLAGS.defaul_value)#.eval(session=sess)
 
@@ -360,9 +380,26 @@ def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False)
 
     reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
+    #visualize(reconstructed)
+
     #              CALCULATE the error for our network
     new_size = np.fmin(reconstructed.shape[0],original_input.shape[0])
-    error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
+    error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
+    better_error = np.zeros([90])
+    k = 2
+    for i in range(2,90):
+        for j in range(k):
+            better_error[i] += np.sqrt(
+                error[i][13 - j] * error[i][13 - j ] + error[i][13 - j + 41] * error[i][13 - j + 41] + error[i][
+                    13 - j + 41+41] * error[i][13 - j + 41+41])
+        better_error[i] = better_error[i]/k
+    #print(better_error)
+
+    with open('boxing_our_2.txt', 'w') as file_handler:
+        for item in better_error:
+            file_handler.write("{}\n".format(item))
+        file_handler.close()
+
     rmse = np.sqrt(((error[error>0.000000001]) ** 2).mean()) # take into account only missing markers
 
     output_bvh_file_name = FLAGS.data_dir+'/result.txt'
@@ -370,6 +407,144 @@ def test(ae,input_seq_file_name, max_val, mean_pose, extract_middle_layer=False)
     #print('And write an output into the file ' + output_bvh_file_name + '...')
 
     return rmse
+
+def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
+       with ae.session.graph.as_default() as sess:
+           sess = ae.session
+           chunking_stride = FLAGS.chunking_stride
+
+           #                    GET THE DATA
+
+           # get input sequnce
+           # print('\nRead a test sequence from the file',input_seq_file_name,'...')
+           original_input = read_test_seq_from_binary(input_seq_file_name)
+
+           visualize(original_input)
+
+           # No Preprocessing!
+           coords_normalized = original_input
+
+           if (coords_normalized.shape[0] < ae.sequence_length):
+               mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               coords_normalized = np.tile(coords_normalized, mupliplication_factor)
+               print("Test sequence was way to short!")
+
+           # Split it into chunks
+           all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+                                  xrange(0, len(original_input) - ae.sequence_length + 1,
+                                         chunking_stride)])  # Split sequence into chunks
+
+           original_size = all_chunks.shape[0]
+
+           if (original_size < ae.batch_size):
+               mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+
+           # Batch those chunks
+           batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
+                               xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+
+           numb_of_batches = batches.shape[0]
+
+           #                    MAKE A SEQUENCE WITH MISSING MARKERS
+
+           output_batches = np.array([])
+
+           # Go over all batches one by one
+           for batch_numb in range(numb_of_batches):
+               output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                             feed_dict={ae._valid_input_: batches[batch_numb],
+                                                        ae._mask: ae._mask_generator.eval(session=ae.session)})
+
+               # Simulate missing markers
+               new_result =  np.multiply(batches[batch_numb], mask)
+
+               output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
+                   [new_result])
+
+           # Postprocess
+           output_sequence = reshape_from_batch_to_sequence(output_batches)
+
+           if (extract_middle_layer):
+               return output_sequence
+
+           # No postprocessing
+            # Unroll batches into the sequence
+           reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
+           #reconstructed = output_sequence
+
+
+           visualize(reconstructed)
+
+           #                    MAKE AN OUTPUT SEQUENCE
+
+           # Preprocess...
+           coords_minus_mean = original_input - mean_pose[np.newaxis, :]
+           eps = 1e-15
+           coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :] + eps)
+
+           if (coords_normalized.shape[0] < ae.sequence_length):
+               mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               coords_normalized = np.tile(coords_normalized, mupliplication_factor)
+               print("Test sequence was way to short!")
+
+           # Split it into chunks
+           all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+                                  xrange(0, len(original_input) - ae.sequence_length + 1,
+                                         chunking_stride)])  # Split sequence into chunks
+
+           original_size = all_chunks.shape[0]
+
+           if (original_size < ae.batch_size):
+               mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+
+           # Batch those chunks
+           batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
+                               xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+
+           numb_of_batches = batches.shape[0]
+
+           # Create an empty array for an output
+           output_batches = np.array([])
+
+           # Go over all batches one by one
+           for batch_numb in range(numb_of_batches):
+               output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                             feed_dict={ae._valid_input_: batches[batch_numb],
+                                                        ae._mask: ae._mask_generator.eval(session=ae.session)})
+
+               # Take known values into account
+               new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
+                                                 FLAGS.defaul_value)  # .eval(session=sess)
+
+               output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
+                   [new_result])
+
+           # print('Postprocess...')
+           output_sequence = reshape_from_batch_to_sequence(output_batches)
+
+           if (extract_middle_layer):
+               return output_sequence
+
+           reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
+
+           visualize(reconstructed)
+
+           #              CALCULATE the error for our network
+           new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
+           error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
+           rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
+
+           output_bvh_file_name = FLAGS.data_dir + '/result.txt'
+           np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
+           # print('And write an output into the file ' + output_bvh_file_name + '...')
+
+           return rmse
 
 
 def reshape_from_batch_to_sequence(input_batch):
@@ -458,11 +633,35 @@ def ignore_right_hand(input_position):
 
   return position_wo_r_hand
 
+def binary_random_matrix_generator():
+      """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
+
+        Args:
+          prob_of_missing: probability to have a missing marker
+        Returns:
+          mask : binary matrix to be multiplied on input in order to simulate missing markers
+      """
+
+      random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
+
+      # Make sure that all coordinates of each point are either missing or present
+
+      random_missing_points = np.ones(random_size)
+      random_missing_points[:,2:,12:14] = 0 # One missing marker for now
+      stacked_coords = np.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+      # Make every 3 markers being the same
+      sess = tf.Session()
+      with sess.as_default():
+        stacked_coords = tf.transpose(stacked_coords, perm=[0, 1, 3, 2]).eval(session=sess)
+      mask = np.reshape(stacked_coords, [np.shape(stacked_coords)[0], np.shape(stacked_coords)[1], -1])
+
+      return mask
+
 if __name__ == '__main__':
 
   print('DID YOU CHANGED THE TEST_FILE ?')
  
-  restore = False # TODO: bring to flags
+  restore = True # TODO: bring to flags
   learning_rate = FLAGS.learning_rate
   batch_size = FLAGS.batch_size
   dropout = FLAGS.dropout # (keep probability) value
@@ -487,7 +686,7 @@ if __name__ == '__main__':
   rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
   print("\nOur RMSE for boxing is : ", rmse)
 
-  rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
   print("\nOur RMSE for basketball is : ", rmse)
 
   rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)

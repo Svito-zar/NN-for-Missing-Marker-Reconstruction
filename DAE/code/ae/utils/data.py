@@ -12,7 +12,7 @@ from flags import FLAGS
 import os
 
 import sys # for adding a python module from the folder
-#import btk
+import btk
 import numpy as np
 from flags import *
 
@@ -164,13 +164,7 @@ def read_c3d_file(file_name):
                 all_3d_coords[time_step][coord][marker_id] = all_3d_coords[amount_of_frames-1][coord][marker_id]
 
 
-    # For debug - Visualize the skeleton
-    '''fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    treshhold= 25
-    ax.scatter(all_3d_coords[10][0][1:treshhold], all_3d_coords[10][1][1:treshhold], all_3d_coords[10][2][1:treshhold], c='r', marker='o')
-    ax.scatter(all_3d_coords[10][0][treshhold:43], all_3d_coords[10][1][treshhold:43], all_3d_coords[10][2][treshhold:43], c='b', marker='o')
-    plt.show()'''
+
 
     # Make a proper array shape
     mocap_seq = all_3d_coords.reshape(all_3d_coords.shape[0], -1) # Concatanate all coords into one vector
@@ -187,6 +181,9 @@ def read_c3d_file(file_name):
     max = np.amax(np.absolute(mocap_seq))
     if(max > 100000):
         print("\nWATCH! The file ", file_name, " had maximal value ", max, "\n")
+
+    # For debug - Visualize the skeleton
+    visualize(mocap_seq)
 
     return mocap_seq
 
@@ -450,6 +447,7 @@ def write_test_seq_in_binary(input_file_name, output_file_name):
     # Datasets themselfs
     train_file = open(output_file_name, 'wb')
     test_seq = read_c3d_file(input_file_name)
+
     test_seq.tofile(train_file)
     train_file.close()
     print("The test sequence was read from", input_file_name, " and written to", output_file_name)
@@ -490,6 +488,67 @@ def loss_reconstruction(output, target, max_vals):
       squared_error = tf.reduce_mean(tf.square(error_scaled))
       return squared_error
 
+def visualize(mocap_seq, test=False):
+
+    all_3d_coords = mocap_seq.reshape(-1, 3,41)  # Concatanate all coords into one vector
+
+    # For debug - Visualize the skeleton
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    start_frame = 40
+    treshhold_0 = 14
+    treshhold_1 = 20
+    treshhold_2 = 27
+    coef = 100
+    for step in range(start_frame, start_frame + 30, 10):
+
+        # Visualize a 3D point cloud
+        ax.scatter3D(all_3d_coords[step][0][:treshhold_0],
+                   np.add(all_3d_coords[step][1][:treshhold_0], (step - start_frame) * coef),
+                   all_3d_coords[step][2][:treshhold_0], c='c', marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_0:treshhold_1],
+                   np.add(all_3d_coords[step][1][treshhold_0:treshhold_1], (step - start_frame) * coef),
+                   all_3d_coords[step][2][treshhold_0:treshhold_1], c='r', marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_1:treshhold_2],np.add(all_3d_coords[step][1][treshhold_1:treshhold_2],(step-start_frame)*coef), all_3d_coords[step][2][treshhold_1:treshhold_2],c='y', marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_2:], np.add(all_3d_coords[step][1][treshhold_2:],(step - start_frame)*coef),
+                   all_3d_coords[step][2][treshhold_2:], c='b', marker='o')
+
+
+        # Find which points are present
+
+        key_point_arm = []
+        for point in list([0, 1, 2, 7, 8, 9]):
+            if(all_3d_coords[step][0][point]!=0 and all_3d_coords[step][0][point+1]!=0):
+                if (all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point+1]!=0):
+                    if (all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point+1]!=0):
+                        key_point_arm.append(point)
+        key_point_arm = np.array(key_point_arm)
+
+        key_point_leg = []
+        for point in list([27,34]): #28, 35
+            if (all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0):
+                if (all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0):
+                    if (all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0):
+                        key_point_leg.append(point)
+        key_point_leg = np.array(key_point_leg)
+
+        # Add lines in between
+
+
+        for point in key_point_arm:
+            xline = all_3d_coords[step][0][point:point+2]
+            yline = np.add(all_3d_coords[step][1][point:point+2], (step - start_frame) * coef)
+            zline = all_3d_coords[step][2][point:point+2]
+            ax.plot(xline, yline, zline, c='c')
+        for point in key_point_leg:
+            xline = all_3d_coords[step][0][point:point+3:2]
+            yline = np.add(all_3d_coords[step][1][point:point+3:2], (step - start_frame) * coef)
+            zline = all_3d_coords[step][2][point:point+3:2]
+            ax.plot(xline, yline, zline, c='b')
+
+
+    plt.show()
 if __name__ == '__main__':
     #write_binary()
 
@@ -509,8 +568,8 @@ if __name__ == '__main__':
     Test =True
 
     if(Test):
-        write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/Raw/Test_seq/102_03.c3d',
-                                 FLAGS.data_dir + '/basketball.binary')
+        write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L/Test_seq/86_14.c3d',
+                                 FLAGS.data_dir + '/basketball_2.binary')
         write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/Raw/Test_seq/85_02.c3d',
                                  FLAGS.data_dir + '/salto.binary')
         write_test_seq_in_binary('/home/taras/Documents/Datasets/MoCap/Raw/Test_seq/14_01.c3d',

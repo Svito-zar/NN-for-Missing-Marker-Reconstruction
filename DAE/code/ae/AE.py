@@ -77,7 +77,6 @@ class AutoEncoder(object):
 
   def binary_random_matrix_generator(self, prob_of_missing):
       """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
-
         Args:
           prob_of_missing: probability to have a missing marker
         Returns:
@@ -90,13 +89,17 @@ class AutoEncoder(object):
       # Make sure that all coordinates of each point are either missing or present
       random_missing_points = tf.random_uniform(random_size)
       stacked_coords = tf.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+      # Make every 3 markers being the same
+      stacked_coords = tf.transpose(stacked_coords, perm=[0, 1,3,2])
+
       random_missing_coords = tf.reshape(stacked_coords, [tf.shape(stacked_coords)[0], tf.shape(stacked_coords)[1], -1])
+
+
 
       mask = tf.where(random_missing_coords < 1 - prob_of_missing,
                       tf.ones(tensor_size), tf.zeros(tensor_size))
 
       return mask
-
 
   @property
   def num_hidden_layers(self):

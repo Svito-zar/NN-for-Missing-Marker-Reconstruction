@@ -3,7 +3,7 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from utils.data import  read_c3d_file, add_noise, loss_reconstruction
+from utils.data import  read_c3d_file, add_noise, loss_reconstruction, visualize
 from utils.flags import FLAGS
 from AE import AutoEncoder, use_existing_markers, simulate_missing_markets
 
@@ -113,6 +113,8 @@ class FlatAutoEncoder(AutoEncoder):
             network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
           else:
             network_input = remove_right_hand(input_seq_pl)
+
+          #visualize(network_input.eval(session=self.session))
 
           if(FLAGS.reccurent == False):
               last_output = network_input[:,0,:]
