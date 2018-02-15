@@ -4,7 +4,6 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 from utils.flags import FLAGS
-import random
 
 
 class AutoEncoder(object):
@@ -80,74 +79,32 @@ class AutoEncoder(object):
 
           return input_seq_pl
 
-  def binary_random_matrix_generator(self, train_flag):
+  def binary_random_matrix_generator(self, prob_of_missing):
       """ Generate a binary matrix with random values: 0s for missign markers and 1s otherwise
-          In the master branch we have experiments with one or two limbs missing,
-          so each sequence have a limb or two missing for all the time-steps
-          Different sequences may have different limb missing
+          Each joint is either completely missing or present:
+          all 3 coordinates are either given or not.
 
         Args:
-          train_flag:  indicator if we are in the training or testing phase
+          prob_of_missing:  probability to have a missing marker, also called "missing rate"
         Returns:
           mask : binary matrix to be multiplied on input in order to simulate missing markers
       """
 
+      random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
       tensor_size = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input]
 
-      r_arm = np.array([10, 11, 12, 13, 14, 15])
-      l_arm = np.array([16, 17, 18, 19, 20, 21])
-      r_leg = np.array([22, 23, 24, 25, 26])
-      l_leg = np.array([27, 28, 29, 30, 31])
+      # Make sure that all coordinates of each point are either missing or present
+      random_missing_points = tf.random_uniform(random_size)
+      stacked_coords = tf.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+      # Make every 3 markers being the same
+      stacked_coords = tf.transpose(stacked_coords, perm=[0, 1,3,2])
 
-      two_arms = np.array([10, 11, 12, 13, 14, 21])
-      
-      if(train_flag):
-          # Define all the body parts
-          body_parts = [r_arm, l_arm, r_leg, l_leg] # two_arms could be included here to improve performance for this scenario a bit
-      else:
-          # Define just one body part
-          body_parts = [r_arm]
+      random_missing_coords = tf.reshape(stacked_coords, [tf.shape(stacked_coords)[0], tf.shape(stacked_coords)[1], -1])
 
-      # initialize mask
-      mask = np.ones(tensor_size)
-
-      # Generate missing markers matrix for each sequence in the batch
-      for sequence in range(FLAGS.batch_size):
-
-          # Choose a random body part
-          missing_body_part = random.choice(body_parts)
-
-          # In order to remove missing data,
-          # we slice the data into the parts, which are before and after missing part(s)
-          prev_data = np.ones([FLAGS.chunk_length, missing_body_part[0]*3] )
-          missing_data = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
-
-          right_part = False # weather we are missing both right arm and leg
-          
-          if(right_part and not train_flag): #could be replaced by missing_body_part[0]==10 to remove the whole right part during the training as well
-
-            missing_body_part = r_leg
-
-            # remove right arm
-            prev_data_2 = np.ones([FLAGS.chunk_length, missing_body_part[0]*3 - (r_arm[-1]+1)*3] )
-            missing_data_2 = np.zeros([FLAGS.chunk_length, (missing_body_part[-1] + 1 - missing_body_part[0])*3 ])
-
-            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
-            mask_for_seq = np.concatenate((prev_data, missing_data,prev_data_2, missing_data_2,next_data), axis = 1)
-            
-          else:
-            next_data = np.ones([FLAGS.chunk_length, (FLAGS.frame_size -(1 + missing_body_part[-1]) *3)] )
-            mask_for_seq = np.concatenate((prev_data, missing_data,next_data), axis = 1)
-
-          # copy the mask for all the frames, if we have a few as input
-          if (FLAGS.amount_of_frames_as_input > 1):
-              mask_for_seq = np.tile(mask_for_seq, (1,FLAGS.amount_of_frames_as_input))
-
-          # Add this raw to the binary mask
-          mask[sequence] = mask_for_seq
+      mask = tf.where(random_missing_coords < 1 - prob_of_missing,
+                      tf.ones(tensor_size), tf.zeros(tensor_size))
 
       return mask
-
 
   @property
   def num_hidden_layers(self):
@@ -182,7 +139,6 @@ class AutoEncoder(object):
   def _activate(x, w, b, transpose_w=False):
     y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b)) # was sigmoid before
     return y
-
 
 def simulate_missing_markets(input_position, mask, const):
     """ Simulate missing markers, by multiplying input on the binary matrix 'mask'

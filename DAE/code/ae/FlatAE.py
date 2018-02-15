@@ -3,10 +3,9 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-from AE import AutoEncoder, simulate_missing_markets
-from utils.data import add_noise, loss_reconstruction
+from utils.data import  add_noise, loss_reconstruction
 from utils.flags import FLAGS
-
+from AE import AutoEncoder, simulate_missing_markets
 
 class FlatAutoEncoder(AutoEncoder):
   """Flat autoencoder.
@@ -74,6 +73,7 @@ class FlatAutoEncoder(AutoEncoder):
 
         # Declare a mask for simulating missing_values
         self._mask = tf.placeholder(dtype=tf.float32, shape = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input], name = 'Mask_of_mis_markers')
+        self._mask_generator = self.binary_random_matrix_generator(FLAGS.missing_rate)
 
         # Reminder: we use Denoising AE (http://www.jmlr.org/papers/volume11/vincent10a/vincent10a.pdf)
 

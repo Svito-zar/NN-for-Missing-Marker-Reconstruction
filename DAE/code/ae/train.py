@@ -5,11 +5,10 @@ import numpy as np
 import tensorflow as tf
 import time
 
-from utils.data import read_datasets_from_binary, read_bvh_file, loss_reconstruction
+from utils.data import read_datasets_from_binary, read_test_seq_from_binary, loss_reconstruction, visualize
 from utils.flags import FLAGS
 from FlatAE import FlatAutoEncoder
-from AE import use_existing_markers
-
+from AE import use_existing_markers,simulate_missing_markets
 
 class DataInfo(object):
   """Information about the datasets
@@ -30,7 +29,6 @@ class DataInfo(object):
     self._eval_shape = eval_shape
     self._max_val = max_val
 
-
 def learning(data, max_val, learning_rate, batch_size, dropout):
   """ Training of the denoising autoencoder
 
@@ -40,6 +38,8 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
     
   with tf.Graph().as_default() as g:
+
+    tf.set_random_seed(FLAGS.seed)
 
     start_time = time.time()
 
@@ -64,7 +64,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         print("ERROR: Without recurrency chunk length should be 1! Please, change flags accordingly")
         exit(1)
 
-    if(FLAGS.restore and pretrain):
+    if(restore and pretrain):
       print('ERROR! You cannot restore and pretrain at the same time! Please, chose one of these options')
       exit(1)
 
@@ -105,7 +105,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars),   1e12)
         train_op = optimizer.apply_gradients(zip(grads, tvars),  global_step = tf.contrib.framework.get_or_create_global_step())
 
-        # Prepare for making a summary for TensorBoard
+         # Prepare for making a summary for TensorBoard
         train_error =tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
         eval_error =tf.placeholder(dtype=tf.float32, shape=(), name='eval_error')
         tf.summary.scalar('Train_error', train_error)
@@ -148,9 +148,9 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
         #restore model, if needed
         if(FLAGS.restore):
-          chkpt_file = FLAGS.chkpt_dir+'/chkpt-'+str(FLAGS.chkpt_num)
-          saver.restore(sess, chkpt_file)
-          print("Model restored from the file "+str(chkpt_file) + '.')
+            chkpt_file = FLAGS.chkpt_dir+'/chkpt-'+str(FLAGS.chkpt_num)
+            saver.restore(sess, chkpt_file)
+            print("Model restored from the file "+str(chkpt_file) + '.')
 
         # A few initialization for the early stopping
         delta = FLAGS.delta_for_early_stopping # error tolerance for early stopping
@@ -186,8 +186,13 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                   # Copy the trained weights to the fixed matrices and biases
                   ae[ae._weights_str.format(n) + 'fixed'] = ae._w(n)
                   ae[ae._biases_str.format(n) + 'fixed'] = ae._b(n)
-              
+
               loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ae._keep_prob: dropout} )
+
+              loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ae._keep_prob: dropout, ae._mask: ae._mask_generator.eval(session=ae.session)})#ae._mask_generator.eval(session=ae.session)} )
+              train_error_ = loss_value
+            
+          step = 0
 
           # Train the whole network jointly
           step = 0
@@ -199,38 +204,43 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
           while not coord.should_stop():
 
-            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae.binary_random_matrix_generator(True)})
+            loss_summary, loss_value  = sess.run([train_op, ae._reconstruction_loss], feed_dict={ ae._mask: ae._mask_generator.eval(session=ae.session), ae._keep_prob: dropout})#ae._mask_generator.eval(session=ae.session)})
+
             train_error_ = loss_value
 
             if (step % num_batches == 0):
-              epoch = step * 1.0 / num_batches
+                rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+                print("\nOur RMSE for salto is : ", rmse)
+              
+                epoch = step * 1.0 / num_batches
 
-              train_summary = sess.run(train_summary_op, feed_dict={train_error: np.sqrt(train_error_)}) # provide a value for a tensor with a train value
+                train_summary = sess.run(train_summary_op, feed_dict={train_error: np.sqrt(train_error_)}) # provide a value for a tensor with a train value
 
-              # Print results of screen
-              epoch_str ="| {0:3.0f} ".format(epoch)[:5]
-              percent_str = "({0:3.2f}".format(epoch * 100.0 / FLAGS.training_epochs)[:5]
-              error_str = "%) |{0:5.2f}".format(train_error_)[:10] + "|"
-              print(epoch_str, percent_str,error_str) #output)
+                # Print results of screen
+                epoch_str ="| {0:3.0f} ".format(epoch)[:5]
+                percent_str = "({0:3.2f}".format(epoch * 100.0 / FLAGS.training_epochs)[:5]
+                error_str = "%) |{0:5.2f}".format(train_error_)[:10] + "|"
+                print(epoch_str, percent_str,error_str) #output)
 
-              if (epoch % 2 == 0):
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the jump is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the run stop is : ", rmse)
-                  rmse = test(ae, FLAGS.data_dir + '/../test_seq/85_02.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
-                              mean_pose)
-                  print("\nOur RMSE for the breakdance is : ", rmse)
+                if (epoch % 5 == 0):
+                    rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+                    print("\nOur RMSE for boxing is : ", rmse)
 
-              if (epoch > 0):
+                    rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
+                    print("\nOur RMSE for basketball is : ", rmse)
+
+                    rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+                    print("\nOur RMSE for the jump turn is : ", rmse)
+
+
+                if (epoch > 0):
                   summary_writer.add_summary(train_summary, step)
+
 
                   #Evaluate on the validation sequences
                   error_sum=0
                   for valid_batch in range(num_valid_batches):
-                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae.binary_random_matrix_generator(False)})
+                    curr_err = sess.run([ae._valid_loss],feed_dict={ae._mask: ae._mask_generator.eval(session=ae.session)})# ae._mask_generator.eval(session=ae.session)})
                     error_sum += curr_err[0]
                   new_error = error_sum / (num_valid_batches)
                   eval_sum = sess.run(eval_summary_op, feed_dict={eval_error: np.sqrt(new_error)})
@@ -248,18 +258,25 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                       # curr_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                       save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
 
-            step += 1
+                if(epoch % 5 ==0):
+                  if not FLAGS.Early_stopping:
+                      # Save for the model
+                      save_path = saver.save(sess, FLAGS.chkpt_dir + '/chkpt',
+                                             global_step=step)  # `save` method will call `export_meta_graph` implicitly.
+                  print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
+                  print("The final model was saved in file: %s" % save_path)
 
+            step += 1
             
         except tf.errors.OutOfRangeError:
-          if not FLAGS.Early_stopping:
-            # Save the model
-            save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
-          print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
-          print("The final model was saved in file: %s" % save_path)
+              if not FLAGS.Early_stopping:
+                # Save the model
+                save_path = saver.save(sess, FLAGS.chkpt_dir+'/chkpt', global_step=step) # `save` method will call `export_meta_graph` implicitly.
+              print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
+              print("The final model was saved in file: %s" % save_path)
         finally:
-          # When done, ask the threads to stop.
-          coord.request_stop()
+            # When done, ask the threads to stop.
+            coord.request_stop()
 
         # Wait for threads to finish.
         coord.join(threads)
@@ -270,21 +287,19 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
     # Save the results
     f = open(FLAGS.results_file, 'a')
-    f.write('\n For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
+    f.write('\nRecurrent AE For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
             FLAGS.network_width) + ' and depth : ' + str(FLAGS.num_hidden_layers) + ' LR: ' + str(
             FLAGS.learning_rate) + ' results in test error: ' + str.format("{0:.5f}", np.sqrt(new_error)))
     f.close()
 
     return ae
 
-    
-def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
+def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
    """ Testing of the denoising autoencoder (AE)
 
      Args:
          ae:                    trained denoising AE
          input_seq_file_name:   file name of the input sequence to be tested for missing marker reconstruction
-         output_seq_file_name:  file name of the output(reconstructed) sequence
          max_val:               vector of maximal values for each dimension in the dataset, for scaling the error rate
          mean_pose:             vector of mean values for each dimension in the dataset
          extract_middle_layer:  flag, whether we are going to just extract middle layer of AE
@@ -298,12 +313,15 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
     chunking_stride = FLAGS.chunking_stride
 
     #                    GET THE DATA
-        
-    # get input sequence
-    original_input, hips = read_bvh_file(input_seq_file_name)  # read_test_seq_from_binary(input_seq_file_name)
 
-    # Preprocess: map values to [-1,1]
+    # get input sequnce
+    original_input = read_test_seq_from_binary(input_seq_file_name)
+
+    # JUST for a special test
+    #original_input = original_input[480:570]
+
     coords_minus_mean = original_input - mean_pose[np.newaxis,:FLAGS.frame_size]
+
     eps=1e-15
     coords_normalized =np.divide(coords_minus_mean,max_val[np.newaxis,:FLAGS.frame_size]+eps)
 
@@ -311,6 +329,7 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
 
     if(coords_normalized.shape[0] < ae.sequence_length):
         mupliplication_factor = int(ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+
         # Pad the sequence with itself in order to fill the sequence completely
         coords_normalized = np.tile(coords_normalized, (mupliplication_factor,1))
         print("Test sequence was way to short!")
@@ -323,12 +342,9 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
         all_chunks = np.array([np.array(coords_normalized[i:i + FLAGS.amount_of_frames_as_input, :]) for i in
                                xrange(0, len(coords_normalized)-FLAGS.amount_of_frames_as_input, chunking_stride)])
 
-    original_size = all_chunks.shape
-
-    all_chunks = np.reshape(all_chunks, (original_size[0], FLAGS.chunk_length,-1))
-
-    if (original_size[0] < ae.batch_size):
+    if (all_chunks.shape[0] < ae.batch_size):
         mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+
         # Pad the sequence with itself in order to fill the batch completely
         all_chunks = np.tile(all_chunks, (mupliplication_factor,1,1))
 
@@ -343,9 +359,9 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
 
     # Go over all batches one by one
     for batch_numb in range(numb_of_batches):
-        output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                      feed_dict={ae._valid_input_: batches[batch_numb],
-                                      ae._mask: ae.binary_random_matrix_generator(False)})
+
+        output_batch, mask = sess.run([ae._valid_output, ae._mask], feed_dict={ae._valid_input_: batches[batch_numb],
+                                                                ae._mask: ae._mask_generator.eval(session=ae.session)}) #ae._mask_generator.eval(session=sess)})
 
         # Take known values into account
         new_result = use_existing_markers(batches[batch_numb], output_batch, mask, FLAGS.defaul_value)#.eval(session=sess)
@@ -354,7 +370,9 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
 
     # Postprocess...
     if (not FLAGS.reccurent):
-      output_batches = np.reshape(output_batches,(output_batches.shape[0],FLAGS.batch_size,FLAGS.amount_of_frames_as_input,FLAGS.frame_size))
+        output_batches = np.reshape(output_batches, (
+                        output_batches.shape[0], FLAGS.batch_size, FLAGS.amount_of_frames_as_input, FLAGS.frame_size))
+
     output_sequence = reshape_from_batch_to_sequence(output_batches)
 
     if(extract_middle_layer):
@@ -362,33 +380,173 @@ def test(ae, input_seq_file_name, output_seq_file_name, max_val, mean_pose, extr
 
     reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
+    #visualize(reconstructed)
+
     #              CALCULATE the error for our network
-    new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
+    new_size = np.fmin(reconstructed.shape[0],original_input.shape[0])
+    error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
 
-    #DEBUG
-    #new_size = int(new_size/2)
+    real_test=False
+    if(real_test):
+        better_error = np.zeros([90])
+        k = 2
+        for i in range(2,90):
+            for j in range(k):
+                better_error[i] += np.sqrt(
+                    error[i][13 - j] * error[i][13 - j ] + error[i][13 - j + 41] * error[i][13 - j + 41] + error[i][
+                        13 - j + 41+41] * error[i][13 - j + 41+41])
+            better_error[i] = better_error[i]/k
+        #print(better_error)
 
-    error = (reconstructed[0:new_size] - original_input[0:new_size])
+        with open('boxing_our_2.txt', 'w') as file_handler:
+            for item in better_error:
+                file_handler.write("{}\n".format(item))
+            file_handler.close()
 
-    if(not FLAGS.missing_markers_are_random):
-        # Consider only error on the markers, which were missing
-        mask_column = 1 - ae.binary_random_matrix_generator(False)[0,0,:FLAGS.frame_size]
-        error_real = error * mask_column[np.newaxis,:]
-        amount_of_vals = np.count_nonzero(error_real)
-        squared_error_sum = np.sum(error_real ** 2)
-        rmse = np.sqrt(squared_error_sum / amount_of_vals)        
-    else:
-        rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean()) # take into account only missing markers
+    rmse = np.sqrt(((error[error>0.000000001]) ** 2).mean()) # take into account only missing markers
 
-    # Write the result into file
-    hips_tiled = np.tile(hips[:new_size,:], (1,32))
-    # Convert back from the hips-centered to original coordinate system
-    result = reconstructed[0:new_size] + hips_tiled
-    np.savetxt(output_seq_file_name, result, fmt='%.5f', delimiter=' ')
-    print('And write an output into the file ' + output_seq_file_name + '...')
+    output_bvh_file_name = FLAGS.data_dir+'/result.txt'
+    np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
 
     return rmse
 
+def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
+       with ae.session.graph.as_default() as sess:
+           sess = ae.session
+           chunking_stride = FLAGS.chunking_stride
+
+           #                    GET THE DATA
+
+           # get input sequnce
+           # print('\nRead a test sequence from the file',input_seq_file_name,'...')
+           original_input = read_test_seq_from_binary(input_seq_file_name)
+
+           visualize(original_input)
+
+           # No Preprocessing!
+           coords_normalized = original_input
+
+           if (coords_normalized.shape[0] < ae.sequence_length):
+               mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               coords_normalized = np.tile(coords_normalized, mupliplication_factor)
+               print("Test sequence was way to short!")
+
+           # Split it into chunks
+           all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+                                  xrange(0, len(original_input) - ae.sequence_length + 1,
+                                         chunking_stride)])  # Split sequence into chunks
+
+           original_size = all_chunks.shape[0]
+
+           if (original_size < ae.batch_size):
+               mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+
+           # Batch those chunks
+           batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
+                               xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+
+           numb_of_batches = batches.shape[0]
+
+           #                    MAKE A SEQUENCE WITH MISSING MARKERS
+
+           output_batches = np.array([])
+
+           # Go over all batches one by one
+           for batch_numb in range(numb_of_batches):
+               output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                             feed_dict={ae._valid_input_: batches[batch_numb],
+                                                        ae._mask: ae._mask_generator.eval(session=ae.session)})
+
+               # Simulate missing markers
+               new_result =  np.multiply(batches[batch_numb], mask)
+
+               output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
+                   [new_result])
+
+           # Postprocess
+           output_sequence = reshape_from_batch_to_sequence(output_batches)
+
+           if (extract_middle_layer):
+               return output_sequence
+
+           # No postprocessing
+            # Unroll batches into the sequence
+           reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
+           #reconstructed = output_sequence
+
+
+           visualize(reconstructed)
+
+           #                    MAKE AN OUTPUT SEQUENCE
+
+           # Preprocess...
+           coords_minus_mean = original_input - mean_pose[np.newaxis, :]
+           eps = 1e-15
+           coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :] + eps)
+
+           if (coords_normalized.shape[0] < ae.sequence_length):
+               mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               coords_normalized = np.tile(coords_normalized, mupliplication_factor)
+               print("Test sequence was way to short!")
+
+           # Split it into chunks
+           all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+                                  xrange(0, len(original_input) - ae.sequence_length + 1,
+                                         chunking_stride)])  # Split sequence into chunks
+
+           original_size = all_chunks.shape[0]
+
+           if (original_size < ae.batch_size):
+               mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+               # Pad the sequence with itself in order to fill the batch completely
+               all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+
+           # Batch those chunks
+           batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
+                               xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+
+           numb_of_batches = batches.shape[0]
+
+           # Create an empty array for an output
+           output_batches = np.array([])
+
+           # Go over all batches one by one
+           for batch_numb in range(numb_of_batches):
+               output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                             feed_dict={ae._valid_input_: batches[batch_numb],
+                                                        ae._mask: ae._mask_generator.eval(session=ae.session)})
+
+               # Take known values into account
+               new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
+                                                 FLAGS.defaul_value)  # .eval(session=sess)
+
+               output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
+                   [new_result])
+
+           # print('Postprocess...')
+           output_sequence = reshape_from_batch_to_sequence(output_batches)
+
+           if (extract_middle_layer):
+               return output_sequence
+
+           reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
+
+           visualize(reconstructed)
+
+           #              CALCULATE the error for our network
+           new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
+           error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
+           rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
+
+           output_bvh_file_name = FLAGS.data_dir + '/result.txt'
+           np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
+           # print('And write an output into the file ' + output_bvh_file_name + '...')
+
+           return rmse
 
 def reshape_from_batch_to_sequence(input_batch):
     '''
@@ -401,12 +559,14 @@ def reshape_from_batch_to_sequence(input_batch):
 
     '''
 
+
+
     # Get the data from the Flags
     chunking_stride = FLAGS.chunking_stride
-    if(FLAGS.reccurent):
-      sequence_length = FLAGS.chunk_length
+    if (FLAGS.reccurent):
+        sequence_length = FLAGS.chunk_length
     else:
-      sequence_length = FLAGS.amount_of_frames_as_input
+        sequence_length = FLAGS.amount_of_frames_as_input
 
     # Reshape batches
     input_chunks = input_batch.reshape(-1, input_batch.shape[2], input_batch.shape[3])
@@ -414,17 +574,14 @@ def reshape_from_batch_to_sequence(input_batch):
 
     # Map from overlapping windows to non-overlaping
     # Take first chunk as a whole and the last part of each other chunk
-
-    input_non_overlaping = input_chunks[0][0:chunking_stride]
-    for i in range(1, numb_of_chunks-1, 1):
+    input_non_overlaping = input_chunks[0]
+    for i in range(1, numb_of_chunks, 1):
         input_non_overlaping = np.concatenate(
-            (input_non_overlaping, input_chunks[i][0:chunking_stride][:]),
+            (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
             axis=0)
-    input_non_overlaping = np.concatenate(
-        (input_non_overlaping, input_chunks[numb_of_chunks-1][0:sequence_length][:]),
-        axis=0)
+    input_non_overlaping = np.array(input_non_overlaping)
 
-    # Flatten it into a sequence
+    # Flaten it into a sequence
     flat_sequence = input_non_overlaping.reshape(-1, input_non_overlaping.shape[-1])
 
     return flat_sequence
@@ -455,11 +612,52 @@ def convert_back_to_3d_coords(sequence, max_val, mean_pose):
     
     return reconstructed
 
+def get_the_data():
+
+  start_time = time.time()
+  
+  # Get the data
+  
+  data, max_val,mean_pose = read_datasets_from_binary()
+    
+  # Check, if we have enough data
+  if(FLAGS.batch_size > data.train._num_chunks):
+    print('ERROR! Cannot have less train sequences than a batch size!')
+    exit(1)
+  if(FLAGS.batch_size > data.test._num_chunks):
+    print('ERROR! Cannot have less test sequences than a batch size!')
+    exit(1)
+
+  return data, max_val,mean_pose
+
+def binary_random_matrix_generator():
+      """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
+         This function is used to emulate single marker missing over extended period of time
+
+        Returns:
+          mask : binary matrix to be multiplied on input in order to simulate missing markers
+      """
+
+      random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
+
+      # Make sure that all coordinates of each point are either missing or present
+
+      random_missing_points = np.ones(random_size)
+      random_missing_points[:,2:,12:14] = 0 # One missing marker for now
+      stacked_coords = np.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+      # Make every 3 markers being the same
+      sess = tf.Session()
+      with sess.as_default():
+        stacked_coords = tf.transpose(stacked_coords, perm=[0, 1, 3, 2]).eval(session=sess)
+      mask = np.reshape(stacked_coords, [np.shape(stacked_coords)[0], np.shape(stacked_coords)[1], -1])
+
+      return mask
 
 if __name__ == '__main__':
 
   print('DID YOU CHANGED THE TEST_FILE ?')
-
+ 
+  restore = True # TODO: bring to flags
   learning_rate = FLAGS.learning_rate
   batch_size = FLAGS.batch_size
   dropout = FLAGS.dropout # keep probability value
@@ -484,15 +682,14 @@ if __name__ == '__main__':
   ae = learning(data, max_val, learning_rate, batch_size, dropout)
 
   # TEST it
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/118_10.bvh', FLAGS.data_dir + '/jump.bvh', max_val,
-                              mean_pose)
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+  print("\nOur RMSE for boxing is : ", rmse)
+
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
+  print("\nOur RMSE for basketball is : ", rmse)
+
+  rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
   print("\nOur RMSE for the jump turn is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/127_05.bvh', FLAGS.data_dir + '/runStop.bvh', max_val,
-                              mean_pose)
-  print("\nOur RMSE for the run stop is : ", rmse)
-  rmse = test(ae, FLAGS.data_dir + '/test_seq/85_12.bvh', FLAGS.data_dir + '/dance.bvh', max_val,
-                              mean_pose)
-  print("\nOur RMSE for the breakdance is : ", rmse)
 
   # Close Tf session
   ae.session.close()
