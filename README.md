@@ -1,18 +1,21 @@
 # Two Neural Network Approaches to Human Pose Reconstruction
 
-This github has 3 branches with different experiments
+## Requirements
+- Python 2
+- Tensorflow >= 1.0
+- Additional Python libraries:
+  - numpy
+  - matplotlib (if you want to visualize the results)
+  - btk (if you want to preprocess test sequences by yourself)
 
-- master (current) - solving occlusion (in paper: Section 5.2.1)
-- missing_markers  - random missing markers (in paper: Section 5.1)
-- denoising        - removing gaussian noise (in paper: Section 5.2.2)
-
-Each branch will have a slightly different README file.
 
 ## Data preparation
 
 In my experiments I have been using CMU Mocap dataset. There are 2 options on how to get it:
 
 1. Download [already preprocessed dataset](https://www.dropbox.com/s/ui6sttqpabb8581/train_folder.tar.gz?dl=0):
+
+   Take the test sequences, I used in the paper [here](https://www.dropbox.com/s/5v073sntijfbexs/Test_seq.tar?dl=0)
 
 
 
@@ -27,8 +30,8 @@ In my experiments I have been using CMU Mocap dataset. There are 2 options on ho
    - Set the address to this data in the code/ae/utils/flag.py as data_dir
    - Preprocess it by running the script code/ae/utils/data.py
 
-Afterwards you need to put all test sequences you want to test on into the folder "test_seq", which should be in the same directory as the main folder with the data.
-You can take my sequences, I used in the paper [here](https://www.dropbox.com/s/xk05ap67pn9yzrr/test_seq.tar.gz?dl=0)
+   Afterwards you need to put all test sequences you want to test on into the folder "test_seq", which should be in the same directory as the main folder with the data.
+   Then you preprocess those sequence by function "write_test_seq_in_binary" from the file ae/utils/data.py, which will write the test sequences in the binary format for the faster and easier access.
 
 So final configuration should look like this:
 
@@ -43,9 +46,9 @@ So final configuration should look like this:
 - variance.binary
 
 /test_seq
-- 14_01.bvh
-- 85_02.bvh
-- 102_03.bvh
+- basketball.binary
+- boxing.binary
+- salto.binary
 ...
 '''
   
@@ -59,6 +62,7 @@ $ python code/train.py
 
 ## Customizing
 You can play around with the run options, including the neural net size and shape, input corruption, learning rates, etc. in the file flags.py.
+Otherwise - you can find the Best Flags in the folder BestFlags
 
 ## Contact
 
