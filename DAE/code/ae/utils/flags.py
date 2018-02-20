@@ -85,8 +85,8 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L',
-                    #'/home/taras/Documents/storage/CMU_Mocap/C3D/60k_new',
+flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
+                    '/home/taras/Documents/Datasets/CMU_c3d/30k_new',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
