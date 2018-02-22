@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import btk
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
@@ -501,6 +502,8 @@ def visualize(mocap_seq, test=False):
                         key_point_arm.append(point)
         key_point_arm = np.array(key_point_arm)
 
+        #print(key_point_arm)
+
         key_point_leg = []
         for point in list([27, 34]):  # 28, 35
             if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
@@ -510,7 +513,6 @@ def visualize(mocap_seq, test=False):
         key_point_leg = np.array(key_point_leg)
 
         # Add lines in between
-
 
         for point in key_point_arm:
             xline = all_3d_coords[step][0][point:point + 2]

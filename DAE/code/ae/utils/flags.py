@@ -121,3 +121,12 @@ flags.DEFINE_string("save_path", None,
                     "Model output directory.")
 flags.DEFINE_bool("use_fp16", False,
                   "Train using 16-bit floats instead of 32bit floats")
+
+
+###                      Flags related to the testing of continuous missing of particular markers
+flags.DEFINE_bool("real_life_scenario", True,
+                  "test in real life situation, meaning that some markers are missing over long period of time")
+flags.DEFINE_integer('amount_of_missing_markers', 2, 'amount of markers which are going to be missing during the "real life" test')
+flags.DEFINE_integer('duration_of_a_gab', 90, 'amount of frames of a gab: how long markers are going to be missing')
+flags.DEFINE_string('real_test_file', home_out('real_test.txt'),
+                    'Filey to put the results of the test in "real life" conditions')
