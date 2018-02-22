@@ -8,7 +8,6 @@ from FlatAE import FlatAutoEncoder
 from utils.data import *
 from utils.flags import FLAGS
 
-
 class DataInfo(object):
     """Information about the datasets
 
@@ -338,16 +337,16 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         # get input sequnce
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        # JUST for a special test
-        # original_input = original_input[480:570]
+        if FLAGS.real_life_scenario:
+            # take only the interesting part of the sequence
+            original_input = original_input#[480:570]
 
+        # Preprocess
         coords_minus_mean = original_input - mean_pose[np.newaxis, :FLAGS.frame_size]
-
         eps = 1e-15
         coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :FLAGS.frame_size] + eps)
 
         # Check if we can cut sequence into the chunks of length ae.sequence_length
-
         if coords_normalized.shape[0] < ae.sequence_length:
             mupliplication_factor = int(ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
 
@@ -371,8 +370,8 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
             all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
 
         # Batch those chunks
-        batches = np.array(
-            [all_chunks[i:i + ae.batch_size, :] for i in xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+        batches = np.array([all_chunks[i:i + ae.batch_size, :]
+                            for i in xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         numb_of_batches = batches.shape[0]
 
@@ -382,14 +381,21 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
 
         # Go over all batches one by one
         for batch_numb in range(numb_of_batches):
-            output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                          feed_dict={ae._valid_input_: batches[batch_numb],
-                                                     ae._mask: ae._mask_generator.eval(
-                                                         session=ae.session)})  # ae._mask_generator.eval(session=sess)})
+
+            if FLAGS.real_life_scenario:
+                output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                              feed_dict={ae._valid_input_: batches[batch_numb],
+                                                         ae._mask: real_binary_random_matrix()})
+
+            else:
+                output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                              feed_dict={ae._valid_input_: batches[batch_numb],
+                                                         ae._mask: ae._mask_generator.eval(
+                                                             session=ae.session)})
 
             # Take known values into account
             new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
-                                              FLAGS.defaul_value)  # .eval(session=sess)
+                                                  FLAGS.defaul_value)
 
             output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
                 [new_result])
@@ -406,25 +412,25 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
 
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
-        # visualize(reconstructed)
-
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
 
-        real_test = False
-        if real_test:
-            better_error = np.zeros([90])
-            k = 2
-            for i in range(2, 90):
+        if FLAGS.real_life_scenario:
+            # Consider 90 frames with specific markers missing
+            better_error = np.zeros([FLAGS.duration_of_a_gab])
+            k = FLAGS.amount_of_missing_markers
+            for i in range(2, FLAGS.duration_of_a_gab):
                 for j in range(k):
+
+                    # Calcuate evarege Eucledian Distance
                     better_error[i] += np.sqrt(
                         error[i][13 - j] * error[i][13 - j] + error[i][13 - j + 41] * error[i][13 - j + 41] + error[i][
                             13 - j + 41 + 41] * error[i][13 - j + 41 + 41])
-                better_error[i] = better_error[i] / k
-            # print(better_error)
 
-            with open('boxing_our_2.txt', 'w') as file_handler:
+                better_error[i] = better_error[i] / k
+                
+            with open(FLAGS.real_test_file, 'w') as file_handler:
                 for item in better_error:
                     file_handler.write("{}\n".format(item))
                 file_handler.close()
@@ -569,7 +575,6 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
 
         output_bvh_file_name = FLAGS.data_dir + '/result.txt'
         np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
-        # print('And write an output into the file ' + output_bvh_file_name + '...')
 
         return rmse
 
@@ -655,7 +660,7 @@ def get_the_data():
     return data, max_val, mean_pose
 
 
-def binary_random_matrix_generator():
+def real_binary_random_matrix():
     """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
        This function is used to emulate single marker missing over extended period of time
 
@@ -668,7 +673,7 @@ def binary_random_matrix_generator():
     # Make sure that all coordinates of each point are either missing or present
 
     random_missing_points = np.ones(random_size)
-    random_missing_points[:, 2:, 12:14] = 0  # One missing marker for now
+    random_missing_points[:, 2:, 14-FLAGS.amount_of_missing_markers:14] = 0  # One missing marker for now
     stacked_coords = np.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
     # Make every 3 markers being the same
     sess = tf.Session()
