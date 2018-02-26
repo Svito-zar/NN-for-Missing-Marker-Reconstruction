@@ -222,9 +222,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                 while not coord.should_stop():
 
-                    loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
-                        ae._mask: ae._mask_generator.eval(session=ae.session),
-                        ae._keep_prob: dropout})  # ae._mask_generator.eval(session=ae.session)})
+                    if FLAGS.continuos_gap:
+                        loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
+                            ae._mask: long_gap_binary_random_matrix(),
+                            ae._keep_prob: dropout})
+                    else:
+                        loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
+                            ae._mask: ae._mask_generator.eval(session=ae.session),
+                            ae._keep_prob: dropout})
 
                     train_error_ = loss_value
 
@@ -241,11 +246,12 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                         print(epoch_str, percent_str, error_str)  # output)
 
                         if (epoch % 5 == 0):
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
-                            print("\nOur RMSE for boxing is : ", rmse)
 
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
                             print("\nOur RMSE for basketball is : ", rmse)
+
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+                            print("\nOur RMSE for boxing is : ", rmse)
 
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
                             print("\nOur RMSE for the jump turn is : ", rmse)
@@ -337,9 +343,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         # get input sequnce
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        if FLAGS.real_life_scenario:
+        if FLAGS.continuos_gap:
             # take only the interesting part of the sequence
-            original_input = original_input#[480:570]
+            original_input = original_input[20:110]
 
         # Preprocess
         coords_minus_mean = original_input - mean_pose[np.newaxis, :FLAGS.frame_size]
@@ -382,10 +388,10 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         # Go over all batches one by one
         for batch_numb in range(numb_of_batches):
 
-            if FLAGS.real_life_scenario:
+            if FLAGS.continuos_gap:
                 output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                               feed_dict={ae._valid_input_: batches[batch_numb],
-                                                         ae._mask: real_binary_random_matrix()})
+                                                         ae._mask: long_gap_binary_random_matrix()})
 
             else:
                 output_batch, mask = sess.run([ae._valid_output, ae._mask],
@@ -416,7 +422,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
 
-        if FLAGS.real_life_scenario:
+        if FLAGS.continuos_gap:
             # Consider 90 frames with specific markers missing
             better_error = np.zeros([FLAGS.duration_of_a_gab])
             k = FLAGS.amount_of_missing_markers
@@ -429,8 +435,8 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
                             13 - j + 41 + 41] * error[i][13 - j + 41 + 41])
 
                 better_error[i] = better_error[i] / k
-                
-            with open(FLAGS.real_test_file, 'w') as file_handler:
+
+            with open(FLAGS.contin_test_file, 'w') as file_handler:
                 for item in better_error:
                     file_handler.write("{}\n".format(item))
                 file_handler.close()
@@ -660,7 +666,7 @@ def get_the_data():
     return data, max_val, mean_pose
 
 
-def real_binary_random_matrix():
+def long_gap_binary_random_matrix():
     """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
        This function is used to emulate single marker missing over extended period of time
 
@@ -676,9 +682,7 @@ def real_binary_random_matrix():
     random_missing_points[:, 2:, 14-FLAGS.amount_of_missing_markers:14] = 0  # One missing marker for now
     stacked_coords = np.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
     # Make every 3 markers being the same
-    sess = tf.Session()
-    with sess.as_default():
-        stacked_coords = tf.transpose(stacked_coords, perm=[0, 1, 3, 2]).eval(session=sess)
+    stacked_coords = np.transpose(stacked_coords, (0, 1, 3, 2))
     mask = np.reshape(stacked_coords, [np.shape(stacked_coords)[0], np.shape(stacked_coords)[1], -1])
 
     return mask

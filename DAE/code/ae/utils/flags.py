@@ -28,8 +28,8 @@ flags.DEFINE_float('learning_rate', 0.0005 ,
 
 flags.DEFINE_float('variance_of_noise', 0.05, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
-flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
-flags.DEFINE_integer('chkpt_num' , 6730, 'Number of the checkpoint')
+flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 67877, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
@@ -85,8 +85,8 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
-                    '/home/taras/Documents/Datasets/CMU_c3d/30k_new',
+flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
+                    #'/home/taras/Documents/Datasets/CMU_c3d/30k_new',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
@@ -124,9 +124,9 @@ flags.DEFINE_bool("use_fp16", False,
 
 
 ###                      Flags related to the testing of continuous missing of particular markers
-flags.DEFINE_bool("real_life_scenario", True,
-                  "test in real life situation, meaning that some markers are missing over long period of time")
-flags.DEFINE_integer('amount_of_missing_markers', 2, 'amount of markers which are going to be missing during the "real life" test')
+flags.DEFINE_bool("continuos_gap", False,
+                  "test in a situation when some markers are missing over long period of time")
+flags.DEFINE_integer('amount_of_missing_markers', 3, 'amount of markers which are going to be missing during the "real life" test')
 flags.DEFINE_integer('duration_of_a_gab', 90, 'amount of frames of a gab: how long markers are going to be missing')
-flags.DEFINE_string('real_test_file', home_out('real_test.txt'),
+flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
