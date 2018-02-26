@@ -194,19 +194,17 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                                     break
 
                                 loss_summary, loss_value = sess.run(
-                                    [pretrain_trainer, loss], feed_dict={ae._keep_prob: dropout})
+                                    [pretrain_trainer, loss])
 
                         # Copy the trained weights to the fixed matrices and biases
                         ae[ae._weights_str.format(n) + 'fixed'] = ae._w(n)
                         ae[ae._biases_str.format(n) + 'fixed'] = ae._b(n)
 
-                    loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss],
-                                                        feed_dict={ae._keep_prob: dropout})
+                    loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss])
 
                     loss_summary, loss_value = \
                         sess.run([train_op, ae._reconstruction_loss],
-                                 feed_dict={ae._keep_prob: dropout,
-                                            ae._mask: ae._mask_generator.eval(
+                                 feed_dict={ae._mask: ae._mask_generator.eval(
                                                 session=ae.session)})  # ae._mask_generator.eval(session=ae.session)} )
 
                 step = 0
@@ -224,12 +222,10 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                     if FLAGS.continuos_gap:
                         loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
-                            ae._mask: long_gap_binary_random_matrix(),
-                            ae._keep_prob: dropout})
+                            ae._mask: long_gap_binary_random_matrix()})
                     else:
                         loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
-                            ae._mask: ae._mask_generator.eval(session=ae.session),
-                            ae._keep_prob: dropout})
+                            ae._mask: ae._mask_generator.eval(session=ae.session)})
 
                     train_error_ = loss_value
 
