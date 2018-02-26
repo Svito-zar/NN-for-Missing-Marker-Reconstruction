@@ -68,8 +68,6 @@ class FlatAutoEncoder(AutoEncoder):
                     self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
                         [lstm_cell(sz) for sz in lstm_sizes], state_is_tuple=True)
 
-                self._keep_prob = tf.placeholder(tf.float32)  # dropout placeholder
-
                 ##############        DEFINE THE NETWORK     ###############################################
 
                 # Declare a mask for simulating missing_values
@@ -95,7 +93,7 @@ class FlatAutoEncoder(AutoEncoder):
                 self._valid_target_ = self._valid_batch
 
                 # Define output
-                self._valid_output = self.construct_graph(self._valid_input_, FLAGS.dropout)
+                self._valid_output = self.construct_graph(self._valid_input_, 1) # no dropout in testing
 
                 # Define loss
                 self._valid_loss = loss_reconstruction(self._valid_output, self._valid_target_,
