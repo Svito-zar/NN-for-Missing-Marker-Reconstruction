@@ -45,7 +45,7 @@ class AutoEncoder(object):
         #################### Add the DATASETS to the GRAPH ###############3
 
         #### 1 - TRAIN ###
-        self._train_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._train_shape)  # 1033 at home
+        self._train_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._train_shape)
         self._train_data = tf.Variable(self._train_data_initializer, trainable=False, collections=[],
                                        name='Train_data')
         if FLAGS.Layer_wise_Pretraining:  # Have more epochs: also for the pretraining

@@ -344,9 +344,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
             original_input = original_input[20:110]
 
         # Preprocess
-        coords_minus_mean = original_input - mean_pose[np.newaxis, :FLAGS.frame_size]
+        coords_minus_mean = original_input - mean_pose[np.newaxis, :]
         eps = 1e-15
-        coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :FLAGS.frame_size] + eps)
+        coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :] + eps)
 
         # Check if we can cut sequence into the chunks of length ae.sequence_length
         if coords_normalized.shape[0] < ae.sequence_length:
@@ -361,9 +361,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
             all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
                                    xrange(0, len(coords_normalized) - ae.sequence_length + 1, chunking_stride)])
         else:
-            all_chunks = np.array([np.array(coords_normalized[i:i + FLAGS.amount_of_frames_as_input, :]) for i in
-                                   xrange(0, len(coords_normalized) - FLAGS.amount_of_frames_as_input,
-                                          chunking_stride)])
+            all_chunks =  np.reshape([coords_normalized],(-1,1,FLAGS.frame_size * FLAGS.amount_of_frames_as_input))
 
         if all_chunks.shape[0] < ae.batch_size:
             mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
@@ -403,10 +401,6 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
                 [new_result])
 
         # Postprocess...
-        if not FLAGS.reccurent:
-            output_batches = np.reshape(output_batches, (
-                output_batches.shape[0], FLAGS.batch_size, FLAGS.amount_of_frames_as_input, FLAGS.frame_size))
-
         output_sequence = reshape_from_batch_to_sequence(output_batches)
 
         if extract_middle_layer:
@@ -560,7 +554,7 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
             output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
                 [new_result])
 
-        # print('Postprocess...')
+        # Postprocess...
         output_sequence = reshape_from_batch_to_sequence(output_batches)
 
         if extract_middle_layer:
@@ -633,10 +627,10 @@ def convert_back_to_3d_coords(sequence, max_val, mean_pose):
     '''
 
     # Convert it back from the [-1,1] to original values
-    reconstructed = np.multiply(sequence, max_val[np.newaxis, :FLAGS.frame_size] + 1e-15)
+    reconstructed = np.multiply(sequence, max_val[np.newaxis, :] + 1e-15)
 
     # Add the mean pose back
-    reconstructed = reconstructed + mean_pose[np.newaxis, :FLAGS.frame_size]
+    reconstructed = reconstructed + mean_pose[np.newaxis, :]
 
     # Unroll batches into the sequence
     reconstructed = reconstructed.reshape(-1, reconstructed.shape[-1])
