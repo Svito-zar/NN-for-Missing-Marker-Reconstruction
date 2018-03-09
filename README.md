@@ -1,4 +1,7 @@
-# Two Neural Network Approaches to Human Pose Reconstruction
+# A Neural Network Approach to Missing Marker Reconstruction
+
+
+This is an implementation for the paper [A Neural Network Approach to Missing Marker Reconstruction](https://arxiv.org/abs/1803.02665)
 
 ## Requirements
 - Python 2
