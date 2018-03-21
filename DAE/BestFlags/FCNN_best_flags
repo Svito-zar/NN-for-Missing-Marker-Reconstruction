@@ -15,63 +15,63 @@ FLAGS = flags.FLAGS
 
 """  							Fine-tuning Parameters 				"""
 
-# Flags about the sequence processing
+
+#                       Flags about the sequence processing
+
 flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
 flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
 flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
 
+#                               Flags about training
 flags.DEFINE_float('learning_rate', 0.0005 ,
                    'learning rate for training .')
 
-flags.DEFINE_float('variance_of_noise', 0.00, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.05, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
+flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 8398690, 'Number of the checkpoint')
 
-# Constants
-flags.DEFINE_integer('seed', 12345, 'Random seed')
+flags.DEFINE_boolean('evaluate', True,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
 flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('batch_size', 32,
                      'Size of the mini batch')
 
+flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise pretraining. It does not help much.')
+
 flags.DEFINE_integer('pretraining_epochs',5,
                      "Number of training epochs for pretraining layers")
 flags.DEFINE_integer('training_epochs', 150,
                      "Number of training epochs for pretraining layers")
 
-# Autoencoder Architecture Specific Flags
+flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay')
+
+flags.DEFINE_boolean('Early_stopping',False,' Whether we do early stopping')
+flags.DEFINE_float('delta_for_early_stopping', 1.5, 'How much worst the results must get in order for training to be terminated. 0.05 mean 5% worst than best we had. It did not help to apply early stopping')
+
+#                       Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
 flags.DEFINE_integer('amount_of_frames_as_input', 10, 'Amount of frames used as input at each time step')
-
-flags.DEFINE_boolean('Hierarchical', False,
-                     'Whether AE is hierarchical')
-
-# Flags about the missing markers
-flags.DEFINE_boolean('missing_markers_are_random', True ,' Whether we having missing markers at random positions, or the whole right hand') 
-flags.DEFINE_float('missing_rate', 0.2, 'What fraction of the input is missing during the testing')
-flags.DEFINE_float('defaul_value', 0, 'What number we will put in place of the missing marker')
-
-
-# Flags about training
-flags.DEFINE_integer('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
-
-flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise pretraining')
-
-flags.DEFINE_integer('Weight_decay', None,' Whether we apply weight decay') 
-flags.DEFINE_boolean('Early_stopping',False,' Whether we do early stopping')
-
-flags.DEFINE_float('delta_for_early_stopping', 0.1, 'How much worst the results must get in order for training to be terminated. 0.05 mean 5% worst than best we had')
-
-
-""" 							FLAT AE 			"""
 
 flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
 flags.DEFINE_integer('network_width', 1024, 'Number of units in each hidden layer ')
 
+flags.DEFINE_boolean('Hierarchical', False,
+                     'Whether AE is hierarchical')
 
-""" 							Other parameters			"""
+#                       Flags about the missing markers
+flags.DEFINE_boolean('missing_markers_are_random', True,' Whether we having missing markers at random positions, or the whole body part')
+flags.DEFINE_float('missing_rate', 0.2, 'What fraction of the input is missing during the testing')
+flags.DEFINE_float('defaul_value', 0, 'What number we will put in place of the missing marker')
 
-flags.DEFINE_integer('middle_layer', 0,
+#                           Constants
+
+flags.DEFINE_integer('seed', 123456, 'Random seed')
+
+#  						Other parameters
+
+flags.DEFINE_integer('middle_layer', 1,
                      "Which hidden layer is view as a middle layer with the representation")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
@@ -84,10 +84,7 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 
 # Directories
-
-flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/Raw' ,
-                    #'/home/taras/Documents/Datasets/CMU_c3d/Walk',
-                     '/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
+flags.DEFINE_string('data_dir','/home/taras/Documents/storage/CMU_Mocap/C3D/28k_64L',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
@@ -122,3 +119,12 @@ flags.DEFINE_string("save_path", None,
                     "Model output directory.")
 flags.DEFINE_bool("use_fp16", False,
                   "Train using 16-bit floats instead of 32bit floats")
+
+
+###                      Flags related to the testing of continuous missing of particular markers
+flags.DEFINE_bool("continuos_gap", False,
+                  "test in a situation when some markers are missing over long period of time")
+flags.DEFINE_integer('amount_of_missing_markers', 3, 'amount of markers which are going to be missing during the "real life" test')
+flags.DEFINE_integer('duration_of_a_gab', 90, 'amount of frames of a gab: how long markers are going to be missing')
+flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
+                    'Filey to put the results of the test in "real life" conditions')
