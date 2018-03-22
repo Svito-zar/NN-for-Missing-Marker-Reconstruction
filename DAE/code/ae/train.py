@@ -8,6 +8,8 @@ from FlatAE import FlatAutoEncoder
 from utils.data import *
 from utils.flags import FLAGS
 
+from tensorflow.core.protobuf import saver_pb2
+
 class DataInfo(object):
     """Information about the datasets
 
@@ -156,7 +158,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                 sess.run(tf.global_variables_initializer())
 
             # Create a saver
-            saver = tf.train.Saver()
+	    saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V1)
 
             # restore model, if needed
             if FLAGS.restore:
