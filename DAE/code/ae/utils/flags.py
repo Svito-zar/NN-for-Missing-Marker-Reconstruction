@@ -18,8 +18,8 @@ FLAGS = flags.FLAGS
 
 #                       Flags about the sequence processing
 
-flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 16,'Stride for spliting sequences into the chunks')
 flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
 
 #                               Flags about training
@@ -85,8 +85,9 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir','/home/taras/Documents/storage/CMU_Mocap/C3D/28k_64L',
+flags.DEFINE_string('data_dir',#'/home/taras/Documents/storage/CMU_Mocap/C3D/28k_64L',
                     #'/home/taras/Documents/Datasets/CMU_c3d/30k_new',
+		     '/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',

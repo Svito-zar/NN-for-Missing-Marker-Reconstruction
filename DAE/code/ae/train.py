@@ -110,7 +110,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
             tvars = tf.trainable_variables()
             grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars), 1e12)
             train_op = optimizer.apply_gradients(zip(grads, tvars),
-                                                 global_step=tf.contrib.framework.get_or_create_global_step())
+                                                 global_step=tf.train.get_or_create_global_step())
 
             # Prepare for making a summary for TensorBoard
             train_error = tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
@@ -158,8 +158,8 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                 sess.run(tf.global_variables_initializer())
 
             # Create a saver
-	    saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V1)
-
+            saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V2)
+    
             # restore model, if needed
             if FLAGS.restore:
                 chkpt_file = FLAGS.chkpt_dir + '/chkpt-' + str(FLAGS.chkpt_num)
@@ -209,8 +209,6 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                                  feed_dict={ae._mask: ae._mask_generator.eval(
                                                 session=ae.session)})  # ae._mask_generator.eval(session=ae.session)} )
 
-                step = 0
-
                 # Train the whole network jointly
                 step = 0
                 print('\nWe train on ', num_batches, ' batches with ', batch_size, ' training examples in each for',
@@ -221,7 +219,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                 print("|------------  |------|")
 
                 while not coord.should_stop():
-
+                    
                     if FLAGS.continuos_gap:
                         loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
                             ae._mask: long_gap_binary_random_matrix()})
