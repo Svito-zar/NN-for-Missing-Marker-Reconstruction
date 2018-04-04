@@ -29,7 +29,7 @@ flags.DEFINE_float('learning_rate', 0.0005 ,
 flags.DEFINE_float('variance_of_noise', 0.05, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
 flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
-flags.DEFINE_integer('chkpt_num' , 67877, 'Number of the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 0, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
@@ -55,7 +55,7 @@ flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a singl
 flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
 
 flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
-flags.DEFINE_integer('network_width', 1024, 'Number of units in each hidden layer ')
+flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
 
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
@@ -85,7 +85,7 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 # Directories
 
-flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
+flags.DEFINE_string('data_dir','/home/taras/Documents/storage/CMU_Mocap/C3D/28k_64L',
                     #'/home/taras/Documents/Datasets/CMU_c3d/30k_new',
                     'Directory to put the training data.')
 
