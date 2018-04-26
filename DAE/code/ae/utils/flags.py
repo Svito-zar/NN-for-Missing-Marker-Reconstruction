@@ -18,8 +18,8 @@ FLAGS = flags.FLAGS
 
 #                       Flags about the sequence processing
 
-flags.DEFINE_integer('chunk_length', 32, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 16,'Stride for spliting sequences into the chunks')
+flags.DEFINE_integer('chunk_length', 128, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 32,'Stride for spliting sequences into the chunks')
 flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
 
 #                               Flags about training
@@ -28,14 +28,14 @@ flags.DEFINE_float('learning_rate', 0.0005 ,
 
 flags.DEFINE_float('variance_of_noise', 0.05, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
-flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
 flags.DEFINE_integer('chkpt_num' , 0, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
 flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
 
-flags.DEFINE_integer('batch_size', 64,
+flags.DEFINE_integer('batch_size', 16,
                      'Size of the mini batch')
 
 flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise pretraining. It does not help much.')
@@ -125,9 +125,11 @@ flags.DEFINE_bool("use_fp16", False,
 
 
 ###                      Flags related to the testing of continuous missing of particular markers
-flags.DEFINE_bool("continuos_gap", False,
+flags.DEFINE_bool("continuos_gap", True,
                   "test in a situation when some markers are missing over long period of time")
 flags.DEFINE_integer('amount_of_missing_markers', 3, 'amount of markers which are going to be missing during the "real life" test')
 flags.DEFINE_integer('duration_of_a_gab', 90, 'amount of frames of a gab: how long markers are going to be missing')
 flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
+flags.DEFINE_bool("plot_error", False,
+                  "test in a situation when some markers are missing over long period of time")

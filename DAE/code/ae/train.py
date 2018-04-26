@@ -222,7 +222,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                     
                     if FLAGS.continuos_gap:
                         loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
-                            ae._mask: long_gap_binary_random_matrix()})
+                            ae._mask: cont_gap_mask()})
                     else:
                         loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss], feed_dict={
                             ae._mask: ae._mask_generator.eval(session=ae.session)})
@@ -339,7 +339,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         # get input sequnce
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        if FLAGS.continuos_gap:
+        if False:#FLAGS.continuos_gap:
             # take only the interesting part of the sequence
             original_input = original_input[20:110]
 
@@ -385,7 +385,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
             if FLAGS.continuos_gap:
                 output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                               feed_dict={ae._valid_input_: batches[batch_numb],
-                                                         ae._mask: long_gap_binary_random_matrix()})
+                                                         ae._mask: cont_gap_mask()})
 
             else:
                 output_batch, mask = sess.run([ae._valid_output, ae._mask],
@@ -412,8 +412,8 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
 
-        if FLAGS.continuos_gap:
-            # Consider 90 frames with specific markers missing
+        if FLAGS.plot_error:
+            # Calculate error for every frame
             better_error = np.zeros([FLAGS.duration_of_a_gab])
             k = FLAGS.amount_of_missing_markers
             for i in range(2, FLAGS.duration_of_a_gab):
@@ -487,7 +487,7 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
         for batch_numb in range(numb_of_batches):
             output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                           feed_dict={ae._valid_input_: batches[batch_numb],
-                                                     ae._mask: ae._mask_generator.eval(session=ae.session)})
+                                                     ae._mask: cont_gap_mask()})
 
             # Simulate missing markers
             new_result = np.multiply(batches[batch_numb], mask)
@@ -545,7 +545,7 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
         for batch_numb in range(numb_of_batches):
             output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                           feed_dict={ae._valid_input_: batches[batch_numb],
-                                                     ae._mask: ae._mask_generator.eval(session=ae.session)})
+                                                     ae._mask:cont_gap_mask()})
 
             # Take known values into account
             new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
@@ -655,8 +655,39 @@ def get_the_data():
 
     return data, max_val, mean_pose
 
+def cont_gap_mask():
+    random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
-def long_gap_binary_random_matrix():
+    mask = np.ones(random_size)
+
+    for batch in range(FLAGS.batch_size):
+
+        time_fr = 1  # no gaps in the very first frame
+
+        while (time_fr < FLAGS.chunk_length):
+
+            # choose random amount of time frames for a gab
+            gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
+
+            # choose random markers for the gab
+            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)
+
+            for gab_time in range(gap_duration):
+
+                for marker in random_markers:
+
+                    mask[batch][time_fr][marker:(marker + 1)] = 0
+                    mask[batch][time_fr][marker + 41:(marker + 41 + 1)] = 0
+                    mask[batch][time_fr][marker + 82:(marker + 82 + 1)] = 0
+
+                time_fr += 1
+
+                if (time_fr >= FLAGS.chunk_length):
+                    break
+
+    return mask
+
+def test_binary_random_matrix():
     """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
        This function is used to emulate single marker missing over extended period of time
 
