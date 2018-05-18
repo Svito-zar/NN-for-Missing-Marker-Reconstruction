@@ -243,7 +243,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
                             print("\nOur RMSE for basketball is : ", rmse)
 
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
@@ -266,7 +266,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                             summary_writer.add_summary(eval_sum, step)
 
                             # Early stopping
-                            if FLAGS.Early_stopping:
+                            if FLAGS.Early_stopping and epoch>20:
                                 if (new_error - best_error) / best_error > delta:
                                     print('After ' + str(step) + ' steps the training started over-fitting ')
                                     break
@@ -278,13 +278,12 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                                     save_path = saver.save(sess, FLAGS.chkpt_dir + '/chkpt',
                                                            global_step=step)  # `save` method will call `export_meta_graph` implicitly.
 
-                        if epoch % 5 == 0:
-                            if not FLAGS.Early_stopping:
+                            if epoch % 5 == 0:
                                 # Save for the model
                                 save_path = saver.save(sess, FLAGS.chkpt_dir + '/chkpt',
                                                        global_step=step)  # `save` method will call `export_meta_graph` implicitly.
-                            print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
-                            print("The model was saved in file: %s" % save_path)
+                                print('Done training for %d epochs, %d steps.' % (FLAGS.training_epochs, step))
+                                print("The model was saved in file: %s" % save_path)
 
                     step += 1
 
@@ -667,7 +666,10 @@ def cont_gap_mask():
         while (time_fr < FLAGS.chunk_length):
 
             # choose random amount of time frames for a gab
-            gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
+            if(FLAGS.duration_of_a_gab):
+		gap_duration = FLAGS.duration_of_a_gab
+	    else:
+		gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
 
             # choose random markers for the gab
             random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)
