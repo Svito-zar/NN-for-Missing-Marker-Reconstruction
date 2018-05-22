@@ -134,7 +134,7 @@ class FlatAutoEncoder(AutoEncoder):
             output, last_states = tf.nn.dynamic_rnn(
                 cell=self._RNN_cell,
                 dtype=tf.float32,
-                sequence_length=[self.sequence_length for i in range(self.batch_size)],
+                #sequence_length=[self.sequence_length for i in range(self.batch_size)],
                 inputs=network_input)
 
             # Reuse variables
@@ -210,7 +210,7 @@ class FlatAutoEncoder(AutoEncoder):
                                        initializer=tf.random_uniform(w_shape, -1 * a, a))
 
         # Add weight to the loss function for weight decay
-        if wd is not None:
+        if wd is not None and FLAGS.reccurent == False:
             weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='weight_' + str(i) + '_loss')
             tf.add_to_collection('losses', weight_decay)
 

@@ -661,7 +661,7 @@ def cont_gap_mask():
 
     for batch in range(FLAGS.batch_size):
 
-        time_fr = 1  # no gaps in the very first frame
+        time_fr = 0
 
         while (time_fr < FLAGS.chunk_length):
 
@@ -742,7 +742,7 @@ if __name__ == '__main__':
     rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
     print("\nOur RMSE for boxing is : ", rmse)
 
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball.binary', max_val, mean_pose)
+    rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
     print("\nOur RMSE for basketball is : ", rmse)
 
     rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
