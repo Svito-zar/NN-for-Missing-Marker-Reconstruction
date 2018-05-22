@@ -244,6 +244,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                         if (epoch % 5 == 0):
 
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
+
                             print("\nOur RMSE for basketball is : ", rmse)
 
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
@@ -314,21 +315,19 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
         return ae
 
-
-def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
-    """ Testing of the denoising autoencoder (AE)
-
-      Args:
-          ae:                    trained denoising AE
-          input_seq_file_name:   file name of the input sequence to be tested for missing marker reconstruction
-          max_val:               vector of maximal values for each dimension in the dataset, for scaling the error rate
-          mean_pose:             vector of mean values for each dimension in the dataset
-          extract_middle_layer:  flag, whether we are going to just extract middle layer of AE
-
-      Returns:
-          rmse: Root Squared Mean Error
+def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False, write_skels_to_files=False):
     """
+    Test our system on a particular sequence
 
+    :param ae:                    trained AER
+    :param input_seq_file_name:   address of the binary file with a test sequence
+    :param max_val:               max values in the dataset (for the normalization)
+    :param mean_pose:             mean values in the dataset (for the normalization)
+    :param extract_middle_layer:  flag, weather we want to extract a middle layer of the AE
+    :param write_skels_to_files:  flag, weather we want to write the sequnces into a file (for further visualization)
+
+    :return: rmse                 root squared mean error
+    """
     with ae.session.graph.as_default() as sess:
         sess = ae.session
         chunking_stride = FLAGS.chunking_stride
@@ -336,175 +335,71 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         #                    GET THE DATA
 
         # get input sequnce
+        #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        if False:#FLAGS.continuos_gap:
-            # take only the interesting part of the sequence
-            original_input = original_input[20:110]
+        if(write_skels_to_files):
 
-        # Preprocess
-        coords_minus_mean = original_input - mean_pose[np.newaxis, :]
-        eps = 1e-15
-        coords_normalized = np.divide(coords_minus_mean, max_val[np.newaxis, :] + eps)
+            # Save the data into a file
+            with open(input_seq_file_name+'_original.csv', 'w') as fp:
+                np.savetxt(fp, original_input[200:800], delimiter=",")
 
-        # Check if we can cut sequence into the chunks of length ae.sequence_length
-        if coords_normalized.shape[0] < ae.sequence_length:
-            mupliplication_factor = int(ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+            # No Preprocessing!
+            coords_normalized = original_input
 
-            # Pad the sequence with itself in order to fill the sequence completely
-            coords_normalized = np.tile(coords_normalized, (mupliplication_factor, 1))
-            print("Test sequence was way to short!")
+            if coords_normalized.shape[0] < ae.sequence_length:
+                mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+                # Pad the sequence with itself in order to fill the batch completely
+                coords_normalized = np.tile(coords_normalized, mupliplication_factor)
+                print("Test sequence was way to short!")
 
-        # Split it into chunks
-        if FLAGS.reccurent:
+            # Split it into chunks
             all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
-                                   xrange(0, len(coords_normalized) - ae.sequence_length + 1, chunking_stride)])
-        else:
-            all_chunks =  np.reshape([coords_normalized],(-1,1,FLAGS.frame_size * FLAGS.amount_of_frames_as_input))
+                                   xrange(0, len(original_input) - ae.sequence_length + 1,
+                                          chunking_stride)])  # Split sequence into chunks
 
-        if all_chunks.shape[0] < ae.batch_size:
-            mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+            original_size = all_chunks.shape[0]
 
-            # Pad the sequence with itself in order to fill the batch completely
-            all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+            if original_size < ae.batch_size:
+                mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+                # Pad the sequence with itself in order to fill the batch completely
+                all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
 
-        # Batch those chunks
-        batches = np.array([all_chunks[i:i + ae.batch_size, :]
-                            for i in xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+            # Batch those chunks
+            batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
+                                xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
 
-        numb_of_batches = batches.shape[0]
+            numb_of_batches = batches.shape[0]
 
-        #                    RUN THE NETWORK
+            #                    MAKE A SEQUENCE WITH MISSING MARKERS
 
-        output_batches = np.array([])
+            output_batches = np.array([])
 
-        # Go over all batches one by one
-        for batch_numb in range(numb_of_batches):
-
-            if FLAGS.continuos_gap:
+            # Go over all batches one by one
+            for batch_numb in range(numb_of_batches):
                 output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                               feed_dict={ae._valid_input_: batches[batch_numb],
                                                          ae._mask: cont_gap_mask()})
 
-            else:
-                output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                              feed_dict={ae._valid_input_: batches[batch_numb],
-                                                         ae._mask: ae._mask_generator.eval(
-                                                             session=ae.session)})
+                # Simulate missing markers
+                new_result = np.multiply(batches[batch_numb], mask)
 
-            # Take known values into account
-            new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
-                                                  FLAGS.defaul_value)
+                output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
+                    [new_result])
 
-            output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
-                [new_result])
+            # Postprocess
+            output_sequence = reshape_from_batch_to_sequence(output_batches)
 
-        # Postprocess...
-        output_sequence = reshape_from_batch_to_sequence(output_batches)
+            if extract_middle_layer:
+                return output_sequence
 
-        if extract_middle_layer:
-            return output_sequence
+                # No postprocessing
+                # Unroll batches into the sequence
+            reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
 
-        reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
+            with open(input_seq_file_name+'_noisy.csv', 'w') as fp:
+                np.savetxt(fp, reconstructed[200:800], delimiter=",")
 
-        #              CALCULATE the error for our network
-        new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
-        error = np.array(reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
-
-        if FLAGS.plot_error:
-            # Calculate error for every frame
-            better_error = np.zeros([FLAGS.duration_of_a_gab])
-            k = FLAGS.amount_of_missing_markers
-            for i in range(2, FLAGS.duration_of_a_gab):
-                for j in range(k):
-
-                    # Calcuate evarege Eucledian Distance
-                    better_error[i] += np.sqrt(
-                        error[i][13 - j] * error[i][13 - j] + error[i][13 - j + 41] * error[i][13 - j + 41] + error[i][
-                            13 - j + 41 + 41] * error[i][13 - j + 41 + 41])
-
-                better_error[i] = better_error[i] / k
-
-            with open(FLAGS.contin_test_file, 'w') as file_handler:
-                for item in better_error:
-                    file_handler.write("{}\n".format(item))
-                file_handler.close()
-
-        rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
-
-        output_bvh_file_name = FLAGS.data_dir + '/result.txt'
-        np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
-
-        return rmse
-
-
-def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False):
-    with ae.session.graph.as_default() as sess:
-        sess = ae.session
-        chunking_stride = FLAGS.chunking_stride
-
-        #                    GET THE DATA
-
-        # get input sequnce
-        # print('\nRead a test sequence from the file',input_seq_file_name,'...')
-        original_input = read_test_seq_from_binary(input_seq_file_name)
-
-        visualize(original_input)
-
-        # No Preprocessing!
-        coords_normalized = original_input
-
-        if coords_normalized.shape[0] < ae.sequence_length:
-            mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
-            # Pad the sequence with itself in order to fill the batch completely
-            coords_normalized = np.tile(coords_normalized, mupliplication_factor)
-            print("Test sequence was way to short!")
-
-        # Split it into chunks
-        all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
-                               xrange(0, len(original_input) - ae.sequence_length + 1,
-                                      chunking_stride)])  # Split sequence into chunks
-
-        original_size = all_chunks.shape[0]
-
-        if original_size < ae.batch_size:
-            mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
-            # Pad the sequence with itself in order to fill the batch completely
-            all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
-
-        # Batch those chunks
-        batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
-                            xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
-
-        numb_of_batches = batches.shape[0]
-
-        #                    MAKE A SEQUENCE WITH MISSING MARKERS
-
-        output_batches = np.array([])
-
-        # Go over all batches one by one
-        for batch_numb in range(numb_of_batches):
-            output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                          feed_dict={ae._valid_input_: batches[batch_numb],
-                                                     ae._mask: cont_gap_mask()})
-
-            # Simulate missing markers
-            new_result = np.multiply(batches[batch_numb], mask)
-
-            output_batches = np.append(output_batches, [new_result], axis=0) if output_batches.size else np.array(
-                [new_result])
-
-        # Postprocess
-        output_sequence = reshape_from_batch_to_sequence(output_batches)
-
-        if extract_middle_layer:
-            return output_sequence
-
-            # No postprocessing
-            # Unroll batches into the sequence
-        reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
-
-        visualize(reconstructed)
 
         #                    MAKE AN OUTPUT SEQUENCE
 
@@ -561,7 +456,11 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
 
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
-        visualize(reconstructed)
+        if (write_skels_to_files):
+            with open(input_seq_file_name + '_our_result.csv', 'w') as fp:
+                np.savetxt(fp, reconstructed[200:800], delimiter=",")
+
+        visualize(reconstructed[100:600])
 
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
@@ -570,6 +469,23 @@ def test_visual(ae, input_seq_file_name, max_val, mean_pose, extract_middle_laye
 
         output_bvh_file_name = FLAGS.data_dir + '/result.txt'
         np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
+
+        if FLAGS.plot_error:
+            # Calculate error for every frame
+            better_error = np.zeros([FLAGS.duration_of_a_gab])
+            for i in range(2, FLAGS.duration_of_a_gab):
+
+                curr_error = error[i]
+
+                rmse =  np.sqrt(((curr_error[curr_error > 0.000000001]) ** 2).mean())
+
+                better_error[i] = rmse
+
+            with open(FLAGS.contin_test_file, 'w') as file_handler:
+                for item in better_error:
+                    file_handler.write("{}\n".format(item))
+                file_handler.close()
+
 
         return rmse
 

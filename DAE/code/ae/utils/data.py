@@ -5,12 +5,16 @@ from __future__ import print_function
 
 #import btk
 import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d.axes3d as p3
 from mpl_toolkits.mplot3d import Axes3D
+
+from matplotlib import animation
+
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 
-from flags import *
 
+from flags import *
 
 class DataSet(object):
     '''
@@ -464,68 +468,7 @@ def loss_reconstruction(output, target, max_vals):
         return squared_error
 
 
-def visualize(mocap_seq, test=False):
-    all_3d_coords = mocap_seq.reshape(-1, 3, 41)  # Concatanate all coords into one vector
 
-    # For debug - Visualize the skeleton
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    start_frame = 40
-    treshhold_0 = 14
-    treshhold_1 = 20
-    treshhold_2 = 27
-    coef = 100
-    for step in range(start_frame, start_frame + 30, 10):
-
-        # Visualize a 3D point cloud
-        ax.scatter3D(all_3d_coords[step][0][:treshhold_0],
-                     np.add(all_3d_coords[step][1][:treshhold_0], (step - start_frame) * coef),
-                     all_3d_coords[step][2][:treshhold_0], c='c', marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_0:treshhold_1],
-                     np.add(all_3d_coords[step][1][treshhold_0:treshhold_1], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_0:treshhold_1], c='r', marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_1:treshhold_2],
-                     np.add(all_3d_coords[step][1][treshhold_1:treshhold_2], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_1:treshhold_2], c='y', marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_2:],
-                     np.add(all_3d_coords[step][1][treshhold_2:], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_2:], c='b', marker='o')
-
-        # Find which points are present
-
-        key_point_arm = []
-        for point in list([0, 1, 2, 7, 8, 9]):
-            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
-                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
-                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
-                        key_point_arm.append(point)
-        key_point_arm = np.array(key_point_arm)
-
-        #print(key_point_arm)
-
-        key_point_leg = []
-        for point in list([27, 34]):  # 28, 35
-            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
-                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
-                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
-                        key_point_leg.append(point)
-        key_point_leg = np.array(key_point_leg)
-
-        # Add lines in between
-
-        for point in key_point_arm:
-            xline = all_3d_coords[step][0][point:point + 2]
-            yline = np.add(all_3d_coords[step][1][point:point + 2], (step - start_frame) * coef)
-            zline = all_3d_coords[step][2][point:point + 2]
-            ax.plot(xline, yline, zline, c='c')
-        for point in key_point_leg:
-            xline = all_3d_coords[step][0][point:point + 3:2]
-            yline = np.add(all_3d_coords[step][1][point:point + 3:2], (step - start_frame) * coef)
-            zline = all_3d_coords[step][2][point:point + 3:2]
-            ax.plot(xline, yline, zline, c='b')
-
-    plt.show()
 
 
 if __name__ == '__main__':

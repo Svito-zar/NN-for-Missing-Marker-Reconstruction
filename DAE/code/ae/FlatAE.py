@@ -36,8 +36,6 @@ class FlatAutoEncoder(AutoEncoder):
 
         self.__variables = {}
 
-        if FLAGS.Weight_decay is not None:
-            print('We apply weight decay')
 
         with sess.graph.as_default():
 
@@ -157,7 +155,7 @@ class FlatAutoEncoder(AutoEncoder):
 
     @staticmethod
     def _activate(x, w, b, transpose_w=False):
-        y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))  # was sigmoid before
+        y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
         return y
 
     def __getitem__(self, item):
@@ -211,6 +209,10 @@ class FlatAutoEncoder(AutoEncoder):
 
         # Add weight to the loss function for weight decay
         if wd is not None and FLAGS.reccurent == False:
+
+            if(i==1):
+                print('We apply weight decay')
+
             weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='weight_' + str(i) + '_loss')
             tf.add_to_collection('losses', weight_decay)
 
