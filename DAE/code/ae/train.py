@@ -110,7 +110,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
             tvars = tf.trainable_variables()
             grads, _ = tf.clip_by_global_norm(tf.gradients(ae._loss, tvars), 1e12)
             train_op = optimizer.apply_gradients(zip(grads, tvars),
-                                                 global_step=tf.train.get_or_create_global_step())
+                                                 global_step=tf.contrib.framework.get_or_create_global_step())
 
             # Prepare for making a summary for TensorBoard
             train_error = tf.placeholder(dtype=tf.float32, shape=(), name='train_error')
@@ -315,7 +315,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
         return ae
 
-def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False, write_skels_to_files=False):
+def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False):
     """
     Test our system on a particular sequence
 
@@ -323,7 +323,6 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
     :param input_seq_file_name:   address of the binary file with a test sequence
     :param max_val:               max values in the dataset (for the normalization)
     :param mean_pose:             mean values in the dataset (for the normalization)
-    :param extract_middle_layer:  flag, weather we want to extract a middle layer of the AE
     :param write_skels_to_files:  flag, weather we want to write the sequnces into a file (for further visualization)
 
     :return: rmse                 root squared mean error
@@ -332,11 +331,22 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         sess = ae.session
         chunking_stride = FLAGS.chunking_stride
 
+        # Get a mask with very long gaps
+        long_mask = cont_gap_mask(test=True)
+
         #                    GET THE DATA
 
         # get input sequnce
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
+
+        # cut the sequnce to the predifiend length
+        original_input = original_input[100:100+FLAGS.test_seq_length]
+
+        if(long_mask.shape[1]!=original_input.shape[0]):
+            print("\nERROR: "
+                  "Test sequnce must have the same length as the missing markers mask!")
+            exit(1)
 
         if(write_skels_to_files):
 
@@ -354,20 +364,21 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
                 print("Test sequence was way to short!")
 
             # Split it into chunks
-            all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+            seq_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
                                    xrange(0, len(original_input) - ae.sequence_length + 1,
                                           chunking_stride)])  # Split sequence into chunks
 
-            original_size = all_chunks.shape[0]
+            original_size = seq_chunks.shape[0]
 
             if original_size < ae.batch_size:
-                mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+                mupliplication_factor = int(ae.batch_size / seq_chunks.shape[0]) + 1
+
                 # Pad the sequence with itself in order to fill the batch completely
-                all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+                seq_chunks = np.tile(seq_chunks, (mupliplication_factor, 1, 1))
 
             # Batch those chunks
-            batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
-                                xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+            batches = np.array([seq_chunks[i:i + ae.batch_size, :] for i in
+                                xrange(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
 
             numb_of_batches = batches.shape[0]
 
@@ -377,9 +388,15 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
 
             # Go over all batches one by one
             for batch_numb in range(numb_of_batches):
-                output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                              feed_dict={ae._valid_input_: batches[batch_numb],
-                                                         ae._mask: cont_gap_mask()})
+
+                if FLAGS.continuos_gap:
+                    output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                                  feed_dict={ae._valid_input_: batches[batch_numb],
+                                                             ae._mask: mask_batches[batch_numb]})
+                else:
+                    output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                                  feed_dict={ae._valid_input_: batches[batch_numb],
+                                                             ae._mask: ae._mask_generator.eval(session=ae.session)})
 
                 # Simulate missing markers
                 new_result = np.multiply(batches[batch_numb], mask)
@@ -389,9 +406,6 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
 
             # Postprocess
             output_sequence = reshape_from_batch_to_sequence(output_batches)
-
-            if extract_middle_layer:
-                return output_sequence
 
                 # No postprocessing
                 # Unroll batches into the sequence
@@ -415,20 +429,30 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
             print("Test sequence was way to short!")
 
         # Split it into chunks
-        all_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
+        seq_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
                                xrange(0, len(original_input) - ae.sequence_length + 1,
                                       chunking_stride)])  # Split sequence into chunks
 
-        original_size = all_chunks.shape[0]
+        mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
+                                xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
+                                       chunking_stride)])
 
-        if original_size < ae.batch_size:
-            mupliplication_factor = int(ae.batch_size / all_chunks.shape[0]) + 1
+        # Pad with itself if it is too short
+        if seq_chunks.shape[0] < ae.batch_size:
+            mupliplication_factor = int(ae.batch_size / seq_chunks.shape[0]) + 1
             # Pad the sequence with itself in order to fill the batch completely
-            all_chunks = np.tile(all_chunks, (mupliplication_factor, 1, 1))
+            seq_chunks = np.tile(seq_chunks, (mupliplication_factor, 1, 1))
+
+        if mask_chunks.shape[0] < ae.batch_size:
+            mupliplication_factor = int(ae.batch_size / mask_chunks.shape[0]) + 1
+            mask_chunks = np.tile(mask_chunks, (mupliplication_factor, 1, 1))
 
         # Batch those chunks
-        batches = np.array([all_chunks[i:i + ae.batch_size, :] for i in
-                            xrange(0, len(all_chunks) - ae.batch_size + 1, ae.batch_size)])
+        batches = np.array([seq_chunks[i:i + ae.batch_size, :] for i in
+                            xrange(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
+
+        mask_batches = np.array([mask_chunks[i:i + ae.batch_size, :] for i in
+                                 xrange(0, len(mask_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         numb_of_batches = batches.shape[0]
 
@@ -437,9 +461,14 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
 
         # Go over all batches one by one
         for batch_numb in range(numb_of_batches):
-            output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                          feed_dict={ae._valid_input_: batches[batch_numb],
-                                                     ae._mask:cont_gap_mask()})
+            if FLAGS.continuos_gap:
+                output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                              feed_dict={ae._valid_input_: batches[batch_numb],
+                                                         ae._mask: mask_batches[batch_numb]})
+            else:
+                output_batch, mask = sess.run([ae._valid_output, ae._mask],
+                                              feed_dict={ae._valid_input_: batches[batch_numb],
+                                                         ae._mask: ae._mask_generator.eval(session=ae.session)})
 
             # Take known values into account
             new_result = use_existing_markers(batches[batch_numb], output_batch, mask,
@@ -451,16 +480,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose, extract_middle_layer=False
         # Postprocess...
         output_sequence = reshape_from_batch_to_sequence(output_batches)
 
-        if extract_middle_layer:
-            return output_sequence
-
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
         if (write_skels_to_files):
             with open(input_seq_file_name + '_our_result.csv', 'w') as fp:
                 np.savetxt(fp, reconstructed[200:800], delimiter=",")
-
-        visualize(reconstructed[100:600])
 
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
@@ -570,22 +594,27 @@ def get_the_data():
 
     return data, max_val, mean_pose
 
-def cont_gap_mask():
-    random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
+def cont_gap_mask(test=False):
 
-    mask = np.ones(random_size)
+    if not test:
+        mask_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
-    for batch in range(FLAGS.batch_size):
+    else:
+        mask_size = [1, FLAGS.test_seq_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
+
+    mask = np.ones(mask_size)
+
+    for batch in range(mask_size[0]):
 
         time_fr = 0
 
-        while (time_fr < FLAGS.chunk_length):
+        while (time_fr < mask_size[1]):
 
             # choose random amount of time frames for a gab
             if(FLAGS.duration_of_a_gab):
-		gap_duration = FLAGS.duration_of_a_gab
-	    else:
-		gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
+                gap_duration = FLAGS.duration_of_a_gab
+            else:
+                gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
 
             # choose random markers for the gab
             random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)
@@ -600,29 +629,8 @@ def cont_gap_mask():
 
                 time_fr += 1
 
-                if (time_fr >= FLAGS.chunk_length):
+                if (time_fr >= mask_size[1]):
                     break
-
-    return mask
-
-def test_binary_random_matrix():
-    """ Generate a binary matrix with random values: 0 with the probability to have a missing marker
-       This function is used to emulate single marker missing over extended period of time
-
-      Returns:
-        mask : binary matrix to be multiplied on input in order to simulate missing markers
-    """
-
-    random_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
-
-    # Make sure that all coordinates of each point are either missing or present
-
-    random_missing_points = np.ones(random_size)
-    random_missing_points[:, 2:, 14-FLAGS.amount_of_missing_markers:14] = 0  # One missing marker for now
-    stacked_coords = np.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
-    # Make every 3 markers being the same
-    stacked_coords = np.transpose(stacked_coords, (0, 1, 3, 2))
-    mask = np.reshape(stacked_coords, [np.shape(stacked_coords)[0], np.shape(stacked_coords)[1], -1])
 
     return mask
 
