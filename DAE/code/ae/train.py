@@ -603,6 +603,7 @@ def cont_gap_mask(test=False):
         mask_size = [1, FLAGS.test_seq_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
     mask = np.ones(mask_size)
+    probabilities = [1.0 / (41) for marker in range(41)]
 
     for batch in range(mask_size[0]):
 
@@ -614,10 +615,10 @@ def cont_gap_mask(test=False):
             if(FLAGS.duration_of_a_gab):
                 gap_duration = FLAGS.duration_of_a_gab
             else:
-                gap_duration = np.random.randint(6, 60)  # between 0.1s and 1s (frame rate 60 fps)
+                gap_duration = int(np.random.normal(10, 5))  # between 0.1s and 1s (frame rate 60 fps)
 
             # choose random markers for the gab
-            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)
+            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False,p=probabilities)
 
             for gab_time in range(gap_duration):
 
@@ -631,6 +632,10 @@ def cont_gap_mask(test=False):
 
                 if (time_fr >= mask_size[1]):
                     break
+
+            # Make sure not to use the same markers twice in a raw
+            p = 1.0 / (41 - FLAGS.amount_of_missing_markers)
+            probabilities = [0 if marker in random_markers else p for marker in range(41)]
 
     return mask
 
