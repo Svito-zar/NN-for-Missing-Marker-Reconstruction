@@ -331,8 +331,6 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         sess = ae.session
         chunking_stride = FLAGS.chunking_stride
 
-        # Get a mask with very long gaps
-        long_mask = cont_gap_mask(test=True)
 
         #                    GET THE DATA
 
@@ -340,13 +338,16 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
+        # Get a mask with very long gaps
+        long_mask = cont_gap_mask(original_input.shape[0],test=True)
+
         # cut the sequnce to the predifiend length
-        original_input = original_input[100:100+FLAGS.test_seq_length]
+        '''original_input = original_input[100:100+FLAGS.test_seq_length]
 
         if(long_mask.shape[1]!=original_input.shape[0]):
             print("\nERROR: "
                   "Test sequnce must have the same length as the missing markers mask!")
-            exit(1)
+            exit(1)'''
 
         if(write_skels_to_files):
 
@@ -594,13 +595,13 @@ def get_the_data():
 
     return data, max_val, mean_pose
 
-def cont_gap_mask(test=False):
+def cont_gap_mask(length=0,test=False):
 
     if not test:
         mask_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
     else:
-        mask_size = [1, FLAGS.test_seq_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
+        mask_size = [1, length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
     mask = np.ones(mask_size)
     probabilities = [1.0 / (41) for marker in range(41)]
