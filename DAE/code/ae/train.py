@@ -243,7 +243,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose, True)
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
@@ -340,6 +340,19 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         # Get a mask with very long gaps
         long_mask = cont_gap_mask(original_input.shape[0],test=True)
+        
+        mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
+                                xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
+                                       chunking_stride)])
+
+        # Pad with itself if it is too short
+        if mask_chunks.shape[0] < ae.batch_size:
+            mupliplication_factor = int(ae.batch_size / mask_chunks.shape[0]) + 1
+            mask_chunks = np.tile(mask_chunks, (mupliplication_factor, 1, 1))
+
+        # Batch those chunks
+        mask_batches = np.array([mask_chunks[i:i + ae.batch_size, :] for i in
+                                 xrange(0, len(mask_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         # cut the sequnce to the predifiend length
         '''original_input = original_input[100:100+FLAGS.test_seq_length]
@@ -390,7 +403,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
             # Go over all batches one by one
             for batch_numb in range(numb_of_batches):
 
-                if FLAGS.continuos_gap:
+                '''if FLAGS.continuos_gap:
                     output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                                   feed_dict={ae._valid_input_: batches[batch_numb],
                                                              ae._mask: mask_batches[batch_numb]})
@@ -398,6 +411,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                     output_batch, mask = sess.run([ae._valid_output, ae._mask],
                                                   feed_dict={ae._valid_input_: batches[batch_numb],
                                                              ae._mask: ae._mask_generator.eval(session=ae.session)})
+		'''
+
+		mask = mask_batches[batch_numb]
 
                 # Simulate missing markers
                 new_result = np.multiply(batches[batch_numb], mask)
@@ -434,26 +450,15 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                                xrange(0, len(original_input) - ae.sequence_length + 1,
                                       chunking_stride)])  # Split sequence into chunks
 
-        mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
-                                xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
-                                       chunking_stride)])
-
         # Pad with itself if it is too short
         if seq_chunks.shape[0] < ae.batch_size:
             mupliplication_factor = int(ae.batch_size / seq_chunks.shape[0]) + 1
             # Pad the sequence with itself in order to fill the batch completely
             seq_chunks = np.tile(seq_chunks, (mupliplication_factor, 1, 1))
 
-        if mask_chunks.shape[0] < ae.batch_size:
-            mupliplication_factor = int(ae.batch_size / mask_chunks.shape[0]) + 1
-            mask_chunks = np.tile(mask_chunks, (mupliplication_factor, 1, 1))
-
         # Batch those chunks
         batches = np.array([seq_chunks[i:i + ae.batch_size, :] for i in
                             xrange(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
-
-        mask_batches = np.array([mask_chunks[i:i + ae.batch_size, :] for i in
-                                 xrange(0, len(mask_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         numb_of_batches = batches.shape[0]
 
