@@ -28,8 +28,8 @@ flags.DEFINE_float('learning_rate', 0.0002 ,
 
 flags.DEFINE_float('variance_of_noise', 0.3, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
-flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
-flags.DEFINE_integer('chkpt_num' , 31675, 'Number of the checkpoint')
+flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 4525, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
@@ -129,8 +129,8 @@ flags.DEFINE_bool("use_fp16", False,
 flags.DEFINE_bool("continuos_gap", False,
                   "test in a situation when some markers are missing over long period of time")
 flags.DEFINE_integer('amount_of_missing_markers', 15, 'amount of markers which are going to be missing during the "real life" test')
-flags.DEFINE_integer('duration_of_a_gab', None, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
+flags.DEFINE_integer('duration_of_a_gab', 120, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
 flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
-flags.DEFINE_bool("plot_error", False,
+flags.DEFINE_bool("plot_error", True,
                   "plot error for every frame in a situation when some markers are missing over long period of time")

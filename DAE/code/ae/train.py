@@ -390,14 +390,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
             # Go over all batches one by one
             for batch_numb in range(numb_of_batches):
 
-                if FLAGS.continuos_gap:
-                    output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                                  feed_dict={ae._valid_input_: batches[batch_numb],
-                                                             ae._mask: mask_batches[batch_numb]})
-                else:
-                    output_batch, mask = sess.run([ae._valid_output, ae._mask],
-                                                  feed_dict={ae._valid_input_: batches[batch_numb],
-                                                             ae._mask: ae._mask_generator.eval(session=ae.session)})
+                mask = mask_batches[batch_numb]
 
                 # Simulate missing markers
                 new_result = np.multiply(batches[batch_numb], mask)
@@ -496,6 +489,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
 
         if FLAGS.plot_error:
+
+            assert (FLAGS.duration_of_a_gab)
+
             # Calculate error for every frame
             better_error = np.zeros([FLAGS.duration_of_a_gab])
             for i in range(2, FLAGS.duration_of_a_gab):
@@ -510,7 +506,6 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                 for item in better_error:
                     file_handler.write("{}\n".format(item))
                 file_handler.close()
-
 
         return rmse
 
