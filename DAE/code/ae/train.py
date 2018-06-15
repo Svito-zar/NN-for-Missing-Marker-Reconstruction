@@ -484,7 +484,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         if FLAGS.plot_error:
 
-            assert (FLAGS.duration_of_a_gab)
+            assert (FLAGS.duration_of_a_gab < error.shape[0] * FLAGS.amount_of_frames_as_input)
+
+            if not FLAGS.reccurent:
+                # Convert from many frames at a time - to just one frame at at time
+                error = error.reshape(-1, FLAGS.frame_size)
 
             # Calculate error for every frame
             better_error = np.zeros([FLAGS.duration_of_a_gab])
@@ -526,14 +530,22 @@ def reshape_from_batch_to_sequence(input_batch):
     input_chunks = input_batch.reshape(-1, input_batch.shape[2], input_batch.shape[3])
     numb_of_chunks = input_chunks.shape[0]
 
-    # Map from overlapping windows to non-overlaping
-    # Take first chunk as a whole and the last part of each other chunk
-    input_non_overlaping = input_chunks[0]
-    for i in range(1, numb_of_chunks, 1):
-        input_non_overlaping = np.concatenate(
-            (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
-            axis=0)
-    input_non_overlaping = np.array(input_non_overlaping)
+    if FLAGS.reccurent:
+        # Map from overlapping windows to non-overlaping
+        # Take first chunk as a whole and the last part of each other chunk
+
+        input_non_overlaping = input_chunks[0]
+        for i in range(1, numb_of_chunks, 1):
+
+            input_non_overlaping = np.concatenate(
+                (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
+                axis=0)
+
+        input_non_overlaping = np.array(input_non_overlaping)
+
+    else:
+        input_non_overlaping = input_chunks.reshape(input_chunks.shape[0],1,sequence_length * FLAGS.frame_size) #sequence_length, FLAGS.frame_size)
+
 
     # Flaten it into a sequence
     flat_sequence = input_non_overlaping.reshape(-1, input_non_overlaping.shape[-1])
@@ -631,8 +643,6 @@ def cont_gap_mask(length=0,test=False):
 
 
 if __name__ == '__main__':
-
-    print('DID YOU CHANGED THE TEST_FILE ?')
 
     learning_rate = FLAGS.learning_rate
     batch_size = FLAGS.batch_size

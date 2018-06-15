@@ -18,9 +18,9 @@ FLAGS = flags.FLAGS
 
 #                       Flags about the sequence processing
 
-flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
-flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
+flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
+flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
 
 #                               Flags about training
 flags.DEFINE_float('learning_rate', 0.0002 ,
@@ -28,7 +28,7 @@ flags.DEFINE_float('learning_rate', 0.0002 ,
 
 flags.DEFINE_float('variance_of_noise', 0.3, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
-flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
 flags.DEFINE_integer('chkpt_num' , 4525, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
@@ -52,7 +52,7 @@ flags.DEFINE_float('delta_for_early_stopping', 0.5, 'How much worst the results 
 
 #                       Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
-flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
+flags.DEFINE_integer('amount_of_frames_as_input', 10, 'Amount of frames used as input at each time step')
 
 flags.DEFINE_integer("num_hidden_layers",2,"Number of hidden layers")
 flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
@@ -86,8 +86,8 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 # Directories
 
 
-flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
-                   # '/home/taras/Documents/Datasets/CMU_c3d/30K',
+flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
+                   '/home/taras/Documents/Datasets/CMU_c3d/30K',
 		        #'/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L',
                     'Directory to put the training data.')
 
@@ -128,9 +128,9 @@ flags.DEFINE_bool("use_fp16", False,
 ###                      Flags related to the testing of continuous missing of particular markers
 flags.DEFINE_bool("continuos_gap", False,
                   "test in a situation when some markers are missing over long period of time")
-flags.DEFINE_integer('amount_of_missing_markers', 15, 'amount of markers which are going to be missing during the "real life" test')
-flags.DEFINE_integer('duration_of_a_gab', 120, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
+flags.DEFINE_integer('amount_of_missing_markers', 10, 'amount of markers which are going to be missing during the "real life" test')
+flags.DEFINE_integer('duration_of_a_gab', None, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
 flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
-flags.DEFINE_bool("plot_error", True,
+flags.DEFINE_bool("plot_error", False,
                   "plot error for every frame in a situation when some markers are missing over long period of time")
