@@ -477,36 +477,39 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
-        rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
+        total_rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
 
         output_bvh_file_name = FLAGS.data_dir + '/result.txt'
         np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
 
         if FLAGS.plot_error:
 
-            assert (FLAGS.duration_of_a_gab < error.shape[0] * FLAGS.amount_of_frames_as_input)
+            if not FLAGS.continuos_gap:
+                print("ERROR! If you need to plot an error - you should have a continuosly missing markers. Change flags.py accordingly")
+                print("For example: set flag 'continuos_gap' to True")
+                exit(0)
 
-            if not FLAGS.reccurent:
-                # Convert from many frames at a time - to just one frame at at time
-                error = error.reshape(-1, FLAGS.frame_size)
+            assert (FLAGS.duration_of_a_gab < error.shape[0] * FLAGS.amount_of_frames_as_input)
 
             # Calculate error for every frame
             better_error = np.zeros([FLAGS.duration_of_a_gab])
-            for i in range(2, FLAGS.duration_of_a_gab):
+            for i in range(int(FLAGS.duration_of_a_gab/FLAGS.amount_of_frames_as_input)):
 
-                curr_error = error[i]
+                # Convert from many frames at a time - to just one frame at at time
+                if not FLAGS.reccurent:
+                    new_error = error[i].reshape(-1, FLAGS.frame_size)
+                for time in range(FLAGS.amount_of_frames_as_input):
+                    this_frame_err = new_error[time]
+                    rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
 
-                rmse =  np.sqrt(((curr_error[curr_error > 0.000000001]) ** 2).mean())
-
-                better_error[i] = rmse
+                    better_error[i*FLAGS.amount_of_frames_as_input + time] = rmse
 
             with open(FLAGS.contin_test_file, 'w') as file_handler:
                 for item in better_error:
                     file_handler.write("{}\n".format(item))
                 file_handler.close()
 
-        return rmse
-
+        return total_rmse
 
 def reshape_from_batch_to_sequence(input_batch):
     '''
@@ -600,7 +603,7 @@ def cont_gap_mask(length=0,test=False):
 
     if not test:
         mask_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
-
+        length = FLAGS.chunk_length
     else:
         mask_size = [1, length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
@@ -611,7 +614,7 @@ def cont_gap_mask(length=0,test=False):
 
         time_fr = 0
 
-        while (time_fr < mask_size[1]):
+        while (time_fr < length):
 
             # choose random amount of time frames for a gab
             if(FLAGS.duration_of_a_gab):
@@ -624,15 +627,17 @@ def cont_gap_mask(length=0,test=False):
 
             for gab_time in range(gap_duration):
 
-                for marker in random_markers:
+                for muptipl_inputs in range(FLAGS.amount_of_frames_as_input):
 
-                    mask[batch][time_fr][marker:(marker + 1)] = 0
-                    mask[batch][time_fr][marker + 41:(marker + 41 + 1)] = 0
-                    mask[batch][time_fr][marker + 82:(marker + 82 + 1)] = 0
+                    for marker in random_markers:
+
+                        mask[batch][time_fr][marker + 123*muptipl_inputs] = 0
+                        mask[batch][time_fr][marker + 41+ 123*muptipl_inputs] = 0
+                        mask[batch][time_fr][marker + 82+ 123*muptipl_inputs] = 0
 
                 time_fr += 1
 
-                if (time_fr >= mask_size[1]):
+                if (time_fr >= length):
                     break
 
             # Make sure not to use the same markers twice in a raw
