@@ -10,6 +10,9 @@ from utils.flags import FLAGS
 
 from tensorflow.core.protobuf import saver_pb2
 
+SKIP = 180 # skip first 1.5 sec - to let motion begin
+NO_GAP = 120 # give all the markers for the first second
+
 class DataInfo(object):
     """Information about the datasets
 
@@ -247,11 +250,11 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
-                            print("\nOur RMSE for boxing is : ", rmse)
+                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+                            #print("\nOur RMSE for boxing is : ", rmse)
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
-                            print("\nOur RMSE for the jump turn is : ", rmse)
+                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+                            #print("\nOur RMSE for the jump turn is : ", rmse)
 
                         if epoch > 0:
                             summary_writer.add_summary(train_summary, step)
@@ -338,8 +341,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
+        # cut only interesting part of a sequence
+        original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gab+NO_GAP]
+
         # Get a mask with very long gaps
-        long_mask = cont_gap_mask(original_input.shape[0],test=True)
+        long_mask = cont_gap_mask(original_input.shape[0],NO_GAP, test=True)
         
         mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
                                 xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
@@ -358,7 +364,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
             # Save the data into a file
             with open(input_seq_file_name+'_original.csv', 'w') as fp:
-                np.savetxt(fp, original_input[200:800], delimiter=",")
+
+                # TODO: implement it for the Window-based network
+
+                np.savetxt(fp, original_input, delimiter=",")
+                print("Results were written to "+input_seq_file_name+'_original.csv')
 
             # No Preprocessing!
             coords_normalized = original_input
@@ -411,7 +421,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
             reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
 
             with open(input_seq_file_name+'_noisy.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed[200:800], delimiter=",")
+                np.savetxt(fp, reconstructed, delimiter=",")
 
 
         #                    MAKE AN OUTPUT SEQUENCE
@@ -472,7 +482,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         if (write_skels_to_files):
             with open(input_seq_file_name + '_our_result.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed[200:800], delimiter=",")
+                np.savetxt(fp, reconstructed, delimiter=",")
 
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
@@ -599,7 +609,7 @@ def get_the_data():
 
     return data, max_val, mean_pose
 
-def cont_gap_mask(length=0,test=False):
+def cont_gap_mask(length=0,gap_begins=0,test=False):
 
     if not test:
         mask_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
@@ -612,7 +622,7 @@ def cont_gap_mask(length=0,test=False):
 
     for batch in range(mask_size[0]):
 
-        time_fr = 0
+        time_fr = gap_begins
 
         while (time_fr < length):
 

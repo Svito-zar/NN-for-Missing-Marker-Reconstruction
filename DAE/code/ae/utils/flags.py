@@ -23,17 +23,17 @@ flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into th
 flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
 
 #                               Flags about training
-flags.DEFINE_float('learning_rate', 0.00003 ,
+flags.DEFINE_float('learning_rate', 0.0001 ,
                    'learning rate for training .')
 
-flags.DEFINE_float('variance_of_noise', 0.1, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
+flags.DEFINE_float('variance_of_noise', 0.2, 'Coefficient to be multiplyied on a standart deviation of the data for the gaussian noise added to every point in input during the training')
 
-flags.DEFINE_boolean('restore', False,' Whether we restore the model from the checkpoint')
-flags.DEFINE_integer('chkpt_num' , 100950, 'Number of the checkpoint')
+flags.DEFINE_boolean('restore', True,' Whether we restore the model from the checkpoint')
+flags.DEFINE_integer('chkpt_num' , 430900, 'Number of the checkpoint')
 
 flags.DEFINE_boolean('evaluate', False,' Whether we are evaluating the system or optimizing a hyper-parameter')
 
-flags.DEFINE_float('dropout', 0.8, 'Probability to keep the neuron on')
+flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
 
 flags.DEFINE_integer('batch_size', 32,
                      'Size of the mini batch')
@@ -45,7 +45,7 @@ flags.DEFINE_integer('pretraining_epochs',5,
 flags.DEFINE_integer('training_epochs',100,
                      "Number of training epochs for pretraining layers")
 
-flags.DEFINE_float('Weight_decay', 0.3,' Whether we apply weight decay')
+flags.DEFINE_float('Weight_decay', 0.2,' Whether we apply weight decay')
 
 flags.DEFINE_boolean('Early_stopping',True,' Whether we do early stopping')
 flags.DEFINE_float('delta_for_early_stopping', 0.5, 'How much worst the results must get in order for training to be terminated. 0.05 mean 5% worst than best we had. It did not help to apply early stopping')
@@ -54,8 +54,8 @@ flags.DEFINE_float('delta_for_early_stopping', 0.5, 'How much worst the results 
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
 flags.DEFINE_integer('amount_of_frames_as_input', 20, 'Amount of frames used as input at each time step')
 
-flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
-flags.DEFINE_integer('network_width', 1024, 'Number of units in each hidden layer ')
+flags.DEFINE_integer("num_hidden_layers",2,"Number of hidden layers")
+flags.DEFINE_integer('network_width', 512, 'Number of units in each hidden layer ')
 
 flags.DEFINE_boolean('Hierarchical', False,
                      'Whether AE is hierarchical')
@@ -71,7 +71,7 @@ flags.DEFINE_integer('seed', 123456, 'Random seed')
 
 #  						Other parameters
 
-flags.DEFINE_integer('middle_layer', 1,
+flags.DEFINE_integer('middle_layer', 0,
                      "Which hidden layer is view as a middle layer with the representation")
 
 flags.DEFINE_float('zero_bound', 1.0e-9,
@@ -129,8 +129,8 @@ flags.DEFINE_bool("use_fp16", False,
 flags.DEFINE_bool("continuos_gap", True,
                   "test in a situation when some markers are missing over long period of time")
 flags.DEFINE_integer('amount_of_missing_markers', 10, 'amount of markers which are going to be missing during the "real life" test')
-flags.DEFINE_integer('duration_of_a_gab', 50, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
+flags.DEFINE_integer('duration_of_a_gab', 600, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
 flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
-flags.DEFINE_bool("plot_error", False,
+flags.DEFINE_bool("plot_error", True,
                   "plot error for every frame in a situation when some markers are missing over long period of time")
