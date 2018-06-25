@@ -10,8 +10,8 @@ from utils.flags import FLAGS
 
 from tensorflow.core.protobuf import saver_pb2
 
-SKIP = 180 # skip first 1.5 sec - to let motion begin
-NO_GAP = 120 # give all the markers for the first second
+SKIP = FLAGS.skip_duration # skip first few seconds - to let motion begin
+NO_GAP = FLAGS.no_gap_duration # give all the markers for the first second
 
 class DataInfo(object):
     """Information about the datasets
@@ -40,7 +40,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
       Autoencoder trained on a data provided by FLAGS
     """
 
-    with tf.Graph().as_default() as g:
+    with tf.Graph().as_default():
 
         tf.set_random_seed(FLAGS.seed)
 
@@ -246,7 +246,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose, True)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose) #,True
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
@@ -501,13 +501,14 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
             assert (FLAGS.duration_of_a_gab < error.shape[0] * FLAGS.amount_of_frames_as_input)
 
+
             # Calculate error for every frame
             better_error = np.zeros([FLAGS.duration_of_a_gab])
             for i in range(int(FLAGS.duration_of_a_gab/FLAGS.amount_of_frames_as_input)):
 
                 # Convert from many frames at a time - to just one frame at at time
                 if not FLAGS.reccurent:
-                    new_error = error[i].reshape(-1, FLAGS.frame_size)
+                    new_error = error[i + int(NO_GAP/FLAGS.amount_of_frames_as_input)].reshape(-1, FLAGS.frame_size)
                 for time in range(FLAGS.amount_of_frames_as_input):
                     this_frame_err = new_error[time]
                     rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
@@ -622,7 +623,7 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
     for batch in range(mask_size[0]):
 
-        time_fr = gap_begins
+        time_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
         while (time_fr < length):
 
