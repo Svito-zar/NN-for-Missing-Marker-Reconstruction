@@ -246,7 +246,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose) #,True
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose,True)
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
@@ -362,16 +362,10 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         if(write_skels_to_files):
 
-            # Save the data into a file
-            with open(input_seq_file_name+'_original.csv', 'w') as fp:
-
-                # TODO: implement it for the Window-based network
-
-                np.savetxt(fp, original_input, delimiter=",")
-                print("Results were written to "+input_seq_file_name+'_original.csv')
-
             # No Preprocessing!
             coords_normalized = original_input
+
+            save_motion(original_input, input_seq_file_name + '_original.csv')
 
             if coords_normalized.shape[0] < ae.sequence_length:
                 mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
@@ -420,8 +414,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                 # Unroll batches into the sequence
             reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
 
-            with open(input_seq_file_name+'_noisy.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed, delimiter=",")
+            save_motion( reconstructed, input_seq_file_name + '_noisy.csv')
 
 
         #                    MAKE AN OUTPUT SEQUENCE
@@ -481,16 +474,13 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
         if (write_skels_to_files):
-            with open(input_seq_file_name + '_our_result.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed, delimiter=",")
+            save_motion(reconstructed, input_seq_file_name + '_our_result.csv')
 
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
         total_rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
 
-        output_bvh_file_name = FLAGS.data_dir + '/result.txt'
-        np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
 
         if FLAGS.plot_error:
 
@@ -657,6 +647,25 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
     return mask
 
+
+def save_motion(motion, file_name):
+    """
+    Save the motion into a csv file
+    :param motion:     sequence of the motion 3d coordinates
+    :param file_name:  file to write the motion into
+    :return:           nothing
+    """
+
+    with open(file_name, 'w') as fp:
+
+        if not FLAGS.reccurent:
+            # Reshape input - to have just one frame at a time
+            to_output = motion.reshape(-1, FLAGS.frame_size)
+        else:
+            to_output = motion
+
+        np.savetxt(fp, to_output, delimiter=",")
+        print("Motion was written to " + file_name)
 
 if __name__ == '__main__':
 
