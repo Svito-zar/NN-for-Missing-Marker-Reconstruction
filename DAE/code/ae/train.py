@@ -341,8 +341,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        # cut only interesting part of a sequence
-        original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gab+NO_GAP]
+        if(FLAGS.duration_of_a_gab):
+            # cut only interesting part of a sequence
+            original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gab+NO_GAP]
 
         # Get a mask with very long gaps
         long_mask = cont_gap_mask(original_input.shape[0],NO_GAP, test=True)
@@ -499,6 +500,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                 # Convert from many frames at a time - to just one frame at at time
                 if not FLAGS.reccurent:
                     new_error = error[i + int(NO_GAP/FLAGS.amount_of_frames_as_input)].reshape(-1, FLAGS.frame_size)
+                else:
+                    new_result = error[i]
+
                 for time in range(FLAGS.amount_of_frames_as_input):
                     this_frame_err = new_error[time]
                     rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
