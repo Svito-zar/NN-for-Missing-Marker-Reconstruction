@@ -498,20 +498,25 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
 
             # Calculate error for every frame
-            better_error = np.zeros([FLAGS.duration_of_a_gab])
+            better_error = np.zeros([FLAGS.duration_of_a_gab + NO_GAP])
             for i in range(int(FLAGS.duration_of_a_gab/FLAGS.amount_of_frames_as_input)):
 
                 # Convert from many frames at a time - to just one frame at at time
                 if not FLAGS.reccurent:
                     new_error = error[i + int(NO_GAP/FLAGS.amount_of_frames_as_input)].reshape(-1, FLAGS.frame_size)
+
+                    for time in range(FLAGS.amount_of_frames_as_input):
+                        this_frame_err = new_error[time]
+                        rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
+
+                        if (rmse > 0):
+                            better_error[i * FLAGS.amount_of_frames_as_input + time + NO_GAP] = rmse
+
                 else:
-                    new_error = error[i]
-
-                for time in range(FLAGS.amount_of_frames_as_input):
-                    this_frame_err = new_error[time]
+                    this_frame_err = error[i+ NO_GAP]
                     rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
-
-                    better_error[i*FLAGS.amount_of_frames_as_input + time] = rmse
+                    if (rmse>0):
+                        better_error[i+ NO_GAP] = rmse
 
             with open(FLAGS.contin_test_file, 'w') as file_handler:
                 for item in better_error:
