@@ -501,7 +501,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                 if not FLAGS.reccurent:
                     new_error = error[i + int(NO_GAP/FLAGS.amount_of_frames_as_input)].reshape(-1, FLAGS.frame_size)
                 else:
-                    new_result = error[i]
+                    new_error = error[i]
 
                 for time in range(FLAGS.amount_of_frames_as_input):
                     this_frame_err = new_error[time]
@@ -619,7 +619,13 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
         time_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
-        while (time_fr < length):
+        if test and FLAGS.duration_of_a_gab:
+            gap_length = FLAGS.duration_of_a_gab
+
+        else:
+            gap_length = length
+
+        while (time_fr < gap_length):
 
             # choose random amount of time frames for a gab
             if(FLAGS.duration_of_a_gab):
