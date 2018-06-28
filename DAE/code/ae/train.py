@@ -347,6 +347,10 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         # Get a mask with very long gaps
         long_mask = cont_gap_mask(original_input.shape[0],NO_GAP, test=True)
+
+        if(long_mask.shape[1]< ae.sequence_length):
+            print("ERROR! Your gap is too short for your sequence length")
+            exit(0)
         
         mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
                                 xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
@@ -617,7 +621,7 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
     for batch in range(mask_size[0]):
 
-        time_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
+        start_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
         if test and FLAGS.duration_of_a_gab:
             gap_length = FLAGS.duration_of_a_gab
@@ -625,7 +629,8 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
         else:
             gap_length = length
 
-        while (time_fr < gap_length):
+        time_fr = start_fr
+        while(time_fr < gap_length+start_fr):
 
             # choose random amount of time frames for a gab
             if(FLAGS.duration_of_a_gab):
@@ -646,8 +651,7 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
                         mask[batch][time_fr][marker + 41+ 123*muptipl_inputs] = 0
                         mask[batch][time_fr][marker + 82+ 123*muptipl_inputs] = 0
 
-                time_fr += 1
-
+                time_fr+= 1
                 if (time_fr >= length):
                     break
 
