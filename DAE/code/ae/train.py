@@ -341,9 +341,9 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        if(FLAGS.duration_of_a_gab):
+        if(FLAGS.duration_of_a_gap):
             # cut only interesting part of a sequence
-            original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gab+NO_GAP]
+            original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gap+NO_GAP]
 
         # Get a mask with very long gaps
         long_mask = cont_gap_mask(original_input.shape[0],NO_GAP, test=True)
@@ -494,12 +494,12 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
                 print("For example: set flag 'continuos_gap' to True")
                 exit(0)
 
-            assert (FLAGS.duration_of_a_gab < error.shape[0] * FLAGS.amount_of_frames_as_input)
+            assert (FLAGS.duration_of_a_gap < error.shape[0] * FLAGS.amount_of_frames_as_input)
 
 
             # Calculate error for every frame
-            better_error = np.zeros([FLAGS.duration_of_a_gab + NO_GAP])
-            for i in range(int(FLAGS.duration_of_a_gab/FLAGS.amount_of_frames_as_input)):
+            better_error = np.zeros([FLAGS.duration_of_a_gap + NO_GAP])
+            for i in range(int(FLAGS.duration_of_a_gap/FLAGS.amount_of_frames_as_input)):
 
                 # Convert from many frames at a time - to just one frame at at time
                 if not FLAGS.reccurent:
@@ -628,8 +628,8 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
         start_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
-        if test and FLAGS.duration_of_a_gab:
-            gap_length = FLAGS.duration_of_a_gab
+        if test and FLAGS.duration_of_a_gap:
+            gap_length = FLAGS.duration_of_a_gap
 
         else:
             gap_length = length
@@ -637,16 +637,16 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
         time_fr = start_fr
         while(time_fr < gap_length+start_fr):
 
-            # choose random amount of time frames for a gab
-            if(FLAGS.duration_of_a_gab):
-                gap_duration = FLAGS.duration_of_a_gab
+            # choose random amount of time frames for a gap
+            if(FLAGS.duration_of_a_gap):
+                gap_duration = FLAGS.duration_of_a_gap
             else:
                 gap_duration = int(np.random.normal(10, 5))  # between 0.1s and 1s (frame rate 60 fps)
 
-            # choose random markers for the gab
+            # choose random markers for the gap
             random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False,p=probabilities)
 
-            for gab_time in range(gap_duration):
+            for gap_time in range(gap_duration):
 
                 for muptipl_inputs in range(FLAGS.amount_of_frames_as_input):
 

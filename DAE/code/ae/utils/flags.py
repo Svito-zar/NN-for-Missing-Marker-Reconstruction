@@ -18,9 +18,9 @@ FLAGS = flags.FLAGS
 
 #                       Flags about the sequence processing
 
-flags.DEFINE_integer('chunk_length', 1, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
-flags.DEFINE_integer('chunking_stride', 1,'Stride for spliting sequences into the chunks')
-flags.DEFINE_bool('reccurent', False, 'Whether AE is recurrent')
+flags.DEFINE_integer('chunk_length', 64, 'Length of the chunks, in which we will be processing our data. Define the length of the memory for RNN.')
+flags.DEFINE_integer('chunking_stride', 64,'Stride for spliting sequences into the chunks')
+flags.DEFINE_bool('reccurent', True, 'Whether AE is recurrent')
 
 #                               Flags about training
 flags.DEFINE_float('learning_rate', 0.0001 ,
@@ -53,7 +53,7 @@ flags.DEFINE_float('delta_for_early_stopping', 0.5, 'How much worst the results 
 
 #                       Autoencoder Architecture Specific Flags
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
-flags.DEFINE_integer('amount_of_frames_as_input', 20, 'Amount of frames used as input at each time step')
+flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
 
 flags.DEFINE_integer("num_hidden_layers",2,"Number of hidden layers")
 flags.DEFINE_integer('network_width', 512, 'Number of units in each hidden layer ')
@@ -89,9 +89,9 @@ flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
 
 
 
-flags.DEFINE_string('data_dir',#'/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
-                   #'/home/taras/Documents/Datasets/CMU_c3d/30K',
-				'/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
+flags.DEFINE_string('data_dir','/home/taras/Documents/Datasets/MoCap/C3d/Raw/28k_64L',
+                   #'/home/taras/Documents/Datasets/MoCap/C3d/30K',
+				#'/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
                     'Directory to put the training data.')
 
 flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
@@ -132,11 +132,11 @@ flags.DEFINE_bool("use_fp16", False,
 flags.DEFINE_bool("continuos_gap",True,
                   "test in a situation when some markers are missing over long period of time")
 flags.DEFINE_integer('amount_of_missing_markers', 10, 'amount of markers which are going to be missing during the "real life" test')
-flags.DEFINE_integer('duration_of_a_gab', 600, 'amount of frames of a gab: how long markers are going to be missing, if None - random uniform between 6 and 60')
+flags.DEFINE_integer('duration_of_a_gap', 30, 'amount of frames of a gap: how long markers are going to be missing, if None - random uniform between 6 and 60')
 flags.DEFINE_string('contin_test_file', 'our_model_results.txt',
                     'Filey to put the results of the test in "real life" conditions')
 flags.DEFINE_bool("plot_error", True,
                   "plot error for every frame in a situation when some markers are missing over long period of time")
 flags.DEFINE_integer('skip_duration', 180, 'amount of first frames to be ignored')
-flags.DEFINE_integer('no_gap_duration', 100, 'amount of frames with all the markers at the beginning and end of the sequence')
+flags.DEFINE_integer('no_gap_duration', 20, 'amount of frames with all the markers at the beginning and end of the sequence')
 
