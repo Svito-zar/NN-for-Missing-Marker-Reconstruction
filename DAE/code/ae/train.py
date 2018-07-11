@@ -253,8 +253,8 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
                             rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose, True)
                             print("\nOur RMSE for boxing is : ", rmse)
 
-                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)#, True)
-                            #print("\nOur RMSE for the jump turn is : ", rmse)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)#, True)
+                            print("\nOur RMSE for the jump turn is : ", rmse)
 
                         if epoch > 0:
                             summary_writer.add_summary(train_summary, step)
@@ -340,6 +340,10 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
+        visualizing = False
+        if(visualizing):
+            visualize(original_input)
+
         if(FLAGS.plot_error):
             # cut only interesting part of a sequence
             original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gap+NO_GAP]
@@ -416,9 +420,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
                 # No postprocessing
                 # Unroll batches into the sequence
-            reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
+            noisy = output_sequence.reshape(-1, output_sequence.shape[-1])
 
-            save_motion( reconstructed, input_seq_file_name + '_noisy.csv')
+            visualize(noisy)
+
+            save_motion(noisy, input_seq_file_name + '_noisy.csv')
 
 
         #                    MAKE AN OUTPUT SEQUENCE
@@ -478,6 +484,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
         if (write_skels_to_files):
+            visualize(reconstructed,original_input)
             save_motion(reconstructed, input_seq_file_name + '_our_result.csv')
 
         #              CALCULATE the error for our network
@@ -713,14 +720,11 @@ if __name__ == '__main__':
     ae = learning(data, max_val, learning_rate, batch_size, dropout)
 
     # TEST it
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+    rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose,True)
     print("\nOur RMSE for boxing is : ", rmse)
 
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
-    print("\nOur RMSE for basketball is : ", rmse)
-
-    #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
-    #print("\nOur RMSE for the jump turn is : ", rmse)
+    '''rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose,True)
+    print("\nOur RMSE for basketball is : ", rmse)'''
 
     # Close Tf session
     ae.session.close()
