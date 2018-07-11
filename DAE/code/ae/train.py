@@ -246,14 +246,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose,True)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)#,True)
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
-                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
-                            #print("\nOur RMSE for boxing is : ", rmse)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose, True)
+                            print("\nOur RMSE for boxing is : ", rmse)
 
-                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+                            #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)#, True)
                             #print("\nOur RMSE for the jump turn is : ", rmse)
 
                         if epoch > 0:
@@ -311,8 +311,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
         # Save the results
         f = open(FLAGS.results_file, 'a')
-        f.write('\nRecurrent AE For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
-            FLAGS.network_width) + ' and depth : ' + str(FLAGS.num_hidden_layers) + ' LR: ' + str(
+        f.write('\nRecurrent AE For the data with ' + str(FLAGS.duration_of_a_gap) + ' gap !!! LR: ' + str(
             FLAGS.learning_rate) + ' results in test error: ' + str.format("{0:.5f}", np.sqrt(new_error)))
         f.close()
 
@@ -341,7 +340,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
-        if(FLAGS.duration_of_a_gap):
+        if(FLAGS.plot_error):
             # cut only interesting part of a sequence
             original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gap+NO_GAP]
 
@@ -373,7 +372,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
             save_motion(original_input, input_seq_file_name + '_original.csv')
 
             if coords_normalized.shape[0] < ae.sequence_length:
-                mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+                mupliplication_factor = int (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
                 # Pad the sequence with itself in order to fill the batch completely
                 coords_normalized = np.tile(coords_normalized, mupliplication_factor)
                 print("Test sequence was way to short!")
@@ -628,9 +627,11 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
 
         start_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
-        if test and FLAGS.duration_of_a_gap:
-            gap_length = FLAGS.duration_of_a_gap
-
+        if test:
+	    if FLAGS.duration_of_a_gap:
+            	gap_length = int(FLAGS.duration_of_a_gap)#/FLAGS.amount_of_frames_as_input)
+	    else:
+            	gap_length = int(length/FLAGS.amount_of_frames_as_input)
         else:
             gap_length = length
 
@@ -641,10 +642,10 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
             if(FLAGS.duration_of_a_gap):
                 gap_duration = FLAGS.duration_of_a_gap
             else:
-                gap_duration = int(np.random.normal(10, 5))  # between 0.1s and 1s (frame rate 60 fps)
+                gap_duration = int(np.random.normal(120, 20))  # between 0.1s and 1s (frame rate 60 fps)
 
             # choose random markers for the gap
-            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False,p=probabilities)
+            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)#,p=probabilities)
 
             for gap_time in range(gap_duration):
 
@@ -657,7 +658,7 @@ def cont_gap_mask(length=0,gap_begins=0,test=False):
                         mask[batch][time_fr][marker + 82+ 123*muptipl_inputs] = 0
 
                 time_fr+= 1
-                if (time_fr >= length):
+                if (time_fr >= gap_length+start_fr):
                     break
 
             # Make sure not to use the same markers twice in a raw
@@ -718,8 +719,8 @@ if __name__ == '__main__':
     rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
     print("\nOur RMSE for basketball is : ", rmse)
 
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
-    print("\nOur RMSE for the jump turn is : ", rmse)
+    #rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+    #print("\nOur RMSE for the jump turn is : ", rmse)
 
     # Close Tf session
     ae.session.close()
