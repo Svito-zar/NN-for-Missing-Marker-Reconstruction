@@ -467,9 +467,100 @@ def loss_reconstruction(output, target, max_vals):
         squared_error = tf.reduce_mean(tf.square(error_scaled))
         return squared_error
 
+def visualize(mocap_seq, another_seq = None):
+
+    all_3d_coords = mocap_seq.reshape(-1, 3, 41)  # Concatanate all coords into one vector
+
+    # For debug - Visualize the skeleton
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    start_frame = 320
+
+    if another_seq is not None:
+        another_3d_coords = another_seq.reshape(-1, 3, 41)
+
+    for step in range(start_frame, start_frame + 15, 5):
+
+        # Draw one point cloud
+        point_cloud(ax, all_3d_coords,step)
+
+        if another_seq is not None:
+            # Draw another point cloud
+            point_cloud(ax,another_3d_coords, step, True, all_3d_coords)
+
+    plt.show()
 
 
+def point_cloud(ax, all_3d_coords, step, diff_colors=False, other_3d_coords=None):
 
+        start_frame = 320
+        treshhold_0 = 14
+        treshhold_1 = 20
+        treshhold_2 = 27
+        coef = 180
+
+        colors = ['#000000', '#000000', '#bebebe', '#bebebe']
+
+        if diff_colors:
+            colors = ['#228b22', '#228b22', '#7fffd4', '#7fffd4']
+
+        # Visualize a 3D point cloud
+        ax.scatter3D(all_3d_coords[step][0][:treshhold_0],
+                     np.add(all_3d_coords[step][1][:treshhold_0], (step - start_frame) * coef),
+                     all_3d_coords[step][2][:treshhold_0], c=colors[0], marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_0:treshhold_1],
+                     np.add(all_3d_coords[step][1][treshhold_0:treshhold_1], (step - start_frame) * coef),
+                     all_3d_coords[step][2][treshhold_0:treshhold_1], c=colors[1], marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_1:treshhold_2],
+                     np.add(all_3d_coords[step][1][treshhold_1:treshhold_2], (step - start_frame) * coef),
+                     all_3d_coords[step][2][treshhold_1:treshhold_2], c=colors[2], marker='o')
+        ax.scatter3D(all_3d_coords[step][0][treshhold_2:],
+                     np.add(all_3d_coords[step][1][treshhold_2:], (step - start_frame) * coef),
+                     all_3d_coords[step][2][treshhold_2:], c=colors[3], marker='o')
+
+        # Find which points are present
+
+        key_point_arm = []
+        for point in list([0, 1, 2, 7, 8, 9]):
+            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
+                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
+                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
+                        key_point_arm.append(point)
+        key_point_arm = np.array(key_point_arm)
+
+        #print(key_point_arm)
+
+        key_point_leg = []
+        for point in list([27, 34]):  # 28, 35
+            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
+                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
+                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
+                        key_point_leg.append(point)
+        key_point_leg = np.array(key_point_leg)
+
+        # Add lines in between
+
+        for point in key_point_arm:
+            xline = all_3d_coords[step][0][point:point + 2]
+            yline = np.add(all_3d_coords[step][1][point:point + 2], (step - start_frame) * coef)
+            zline = all_3d_coords[step][2][point:point + 2]
+            ax.plot(xline, yline, zline, c=colors[0])
+        for point in key_point_leg:
+            xline = all_3d_coords[step][0][point:point + 3:2]
+            yline = np.add(all_3d_coords[step][1][point:point + 3:2], (step - start_frame) * coef)
+            zline = all_3d_coords[step][2][point:point + 3:2]
+            ax.plot(xline, yline, zline, c=colors[3])
+
+
+        # Add lines between our different point clouds
+
+        if other_3d_coords is not None:
+            for point in range(41):
+                xline = [all_3d_coords[step][0][point], other_3d_coords[step][0][point]]
+                yline = np.add([all_3d_coords[step][1][point], other_3d_coords[step][1][point]], (step - start_frame) * coef)
+                zline = [all_3d_coords[step][2][point], other_3d_coords[step][2][point]]
+                ax.plot(xline, yline, zline, c='r')
 
 if __name__ == '__main__':
 

@@ -10,6 +10,9 @@ from utils.flags import FLAGS
 
 from tensorflow.core.protobuf import saver_pb2
 
+SKIP = FLAGS.skip_duration # skip first few seconds - to let motion begin
+NO_GAP = FLAGS.no_gap_duration # give all the markers for the first second
+
 class DataInfo(object):
     """Information about the datasets
 
@@ -37,7 +40,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
       Autoencoder trained on a data provided by FLAGS
     """
 
-    with tf.Graph().as_default() as g:
+    with tf.Graph().as_default():
 
         tf.set_random_seed(FLAGS.seed)
 
@@ -243,14 +246,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
                         if (epoch % 5 == 0):
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose, True)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)#,True)
 
                             print("\nOur RMSE for basketball is : ", rmse)
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose, True)
                             print("\nOur RMSE for boxing is : ", rmse)
 
-                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
+                            rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)#, True)
                             print("\nOur RMSE for the jump turn is : ", rmse)
 
                         if epoch > 0:
@@ -308,8 +311,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
 
         # Save the results
         f = open(FLAGS.results_file, 'a')
-        f.write('\nRecurrent AE For the data from ' + str(FLAGS.data_dir) + ' Width: ' + str(
-            FLAGS.network_width) + ' and depth : ' + str(FLAGS.num_hidden_layers) + ' LR: ' + str(
+        f.write('\nRecurrent AE For the data with ' + str(FLAGS.duration_of_a_gap) + ' gap !!! LR: ' + str(
             FLAGS.learning_rate) + ' results in test error: ' + str.format("{0:.5f}", np.sqrt(new_error)))
         f.close()
 
@@ -338,8 +340,20 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         #print('\nRead a test sequence from the file',input_seq_file_name,'...')
         original_input = read_test_seq_from_binary(input_seq_file_name)
 
+        visualizing = False
+        if(visualizing):
+            visualize(original_input)
+
+        if(FLAGS.plot_error):
+            # cut only interesting part of a sequence
+            original_input = original_input[SKIP:SKIP +NO_GAP+FLAGS.duration_of_a_gap+NO_GAP]
+
         # Get a mask with very long gaps
-        long_mask = cont_gap_mask(original_input.shape[0],test=True)
+        long_mask = cont_gap_mask(original_input.shape[0],NO_GAP, test=True)
+
+        if(long_mask.shape[1]< ae.sequence_length):
+            print("ERROR! Your gap is too short for your sequence length")
+            exit(0)
         
         mask_chunks = np.array([long_mask[0,i:i + ae.sequence_length, :] for i in
                                 xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
@@ -356,15 +370,13 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
         if(write_skels_to_files):
 
-            # Save the data into a file
-            with open(input_seq_file_name+'_original.csv', 'w') as fp:
-                np.savetxt(fp, original_input[200:800], delimiter=",")
-
             # No Preprocessing!
             coords_normalized = original_input
 
+            save_motion(original_input, input_seq_file_name + '_original.csv')
+
             if coords_normalized.shape[0] < ae.sequence_length:
-                mupliplication_factor = (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
+                mupliplication_factor = int (ae.batch_size * ae.sequence_length / coords_normalized.shape[0]) + 1
                 # Pad the sequence with itself in order to fill the batch completely
                 coords_normalized = np.tile(coords_normalized, mupliplication_factor)
                 print("Test sequence was way to short!")
@@ -408,10 +420,11 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
 
                 # No postprocessing
                 # Unroll batches into the sequence
-            reconstructed = output_sequence.reshape(-1, output_sequence.shape[-1])
+            noisy = output_sequence.reshape(-1, output_sequence.shape[-1])
 
-            with open(input_seq_file_name+'_noisy.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed[200:800], delimiter=",")
+            visualize(noisy)
+
+            save_motion(noisy, input_seq_file_name + '_noisy.csv')
 
 
         #                    MAKE AN OUTPUT SEQUENCE
@@ -471,38 +484,52 @@ def test(ae, input_seq_file_name, max_val, mean_pose,write_skels_to_files=False)
         reconstructed = convert_back_to_3d_coords(output_sequence, max_val, mean_pose)
 
         if (write_skels_to_files):
-            with open(input_seq_file_name + '_our_result.csv', 'w') as fp:
-                np.savetxt(fp, reconstructed[200:800], delimiter=",")
+            visualize(reconstructed,original_input)
+            save_motion(reconstructed, input_seq_file_name + '_our_result.csv')
 
         #              CALCULATE the error for our network
         new_size = np.fmin(reconstructed.shape[0], original_input.shape[0])
         error = (reconstructed[0:new_size] - original_input[0:new_size]) * ae.scaling_factor
-        rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
+        total_rmse = np.sqrt(((error[error > 0.000000001]) ** 2).mean())  # take into account only missing markers
 
-        output_bvh_file_name = FLAGS.data_dir + '/result.txt'
-        np.savetxt(output_bvh_file_name, reconstructed, fmt='%.5f', delimiter=' ')
 
         if FLAGS.plot_error:
 
-            assert (FLAGS.duration_of_a_gab)
+            if not FLAGS.continuos_gap:
+                print("ERROR! If you need to plot an error - you should have a continuosly missing markers. Change flags.py accordingly")
+                print("For example: set flag 'continuos_gap' to True")
+                exit(0)
+
+            assert (FLAGS.duration_of_a_gap < error.shape[0] * FLAGS.amount_of_frames_as_input)
+
 
             # Calculate error for every frame
-            better_error = np.zeros([FLAGS.duration_of_a_gab])
-            for i in range(2, FLAGS.duration_of_a_gab):
+            better_error = np.zeros([FLAGS.duration_of_a_gap + NO_GAP])
+            for i in range(int(FLAGS.duration_of_a_gap/FLAGS.amount_of_frames_as_input)):
 
-                curr_error = error[i]
+                # Convert from many frames at a time - to just one frame at at time
+                if not FLAGS.reccurent:
+                    new_error = error[i + int(NO_GAP/FLAGS.amount_of_frames_as_input)].reshape(-1, FLAGS.frame_size)
 
-                rmse =  np.sqrt(((curr_error[curr_error > 0.000000001]) ** 2).mean())
+                    for time in range(FLAGS.amount_of_frames_as_input):
+                        this_frame_err = new_error[time]
+                        rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
 
-                better_error[i] = rmse
+                        if (rmse > 0):
+                            better_error[i * FLAGS.amount_of_frames_as_input + time + NO_GAP] = rmse
+
+                else:
+                    this_frame_err = error[i+ NO_GAP]
+                    rmse = np.sqrt(((this_frame_err[this_frame_err > 0.000000001]) ** 2).mean())
+                    if (rmse>0):
+                        better_error[i+ NO_GAP] = rmse
 
             with open(FLAGS.contin_test_file, 'w') as file_handler:
                 for item in better_error:
                     file_handler.write("{}\n".format(item))
                 file_handler.close()
 
-        return rmse
-
+        return total_rmse
 
 def reshape_from_batch_to_sequence(input_batch):
     '''
@@ -526,14 +553,22 @@ def reshape_from_batch_to_sequence(input_batch):
     input_chunks = input_batch.reshape(-1, input_batch.shape[2], input_batch.shape[3])
     numb_of_chunks = input_chunks.shape[0]
 
-    # Map from overlapping windows to non-overlaping
-    # Take first chunk as a whole and the last part of each other chunk
-    input_non_overlaping = input_chunks[0]
-    for i in range(1, numb_of_chunks, 1):
-        input_non_overlaping = np.concatenate(
-            (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
-            axis=0)
-    input_non_overlaping = np.array(input_non_overlaping)
+    if FLAGS.reccurent:
+        # Map from overlapping windows to non-overlaping
+        # Take first chunk as a whole and the last part of each other chunk
+
+        input_non_overlaping = input_chunks[0]
+        for i in range(1, numb_of_chunks, 1):
+
+            input_non_overlaping = np.concatenate(
+                (input_non_overlaping, input_chunks[i][sequence_length - chunking_stride: sequence_length][:]),
+                axis=0)
+
+        input_non_overlaping = np.array(input_non_overlaping)
+
+    else:
+        input_non_overlaping = input_chunks.reshape(input_chunks.shape[0],1,sequence_length * FLAGS.frame_size) #sequence_length, FLAGS.frame_size)
+
 
     # Flaten it into a sequence
     flat_sequence = input_non_overlaping.reshape(-1, input_non_overlaping.shape[-1])
@@ -584,11 +619,11 @@ def get_the_data():
 
     return data, max_val, mean_pose
 
-def cont_gap_mask(length=0,test=False):
+def cont_gap_mask(length=0,gap_begins=0,test=False):
 
     if not test:
         mask_size = [FLAGS.batch_size, FLAGS.chunk_length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
-
+        length = FLAGS.chunk_length
     else:
         mask_size = [1, length, int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input)]
 
@@ -597,30 +632,40 @@ def cont_gap_mask(length=0,test=False):
 
     for batch in range(mask_size[0]):
 
-        time_fr = 0
+        start_fr = int(gap_begins/FLAGS.amount_of_frames_as_input)
 
-        while (time_fr < mask_size[1]):
+        if test:
+	    if FLAGS.duration_of_a_gap:
+            	gap_length = int(FLAGS.duration_of_a_gap)#/FLAGS.amount_of_frames_as_input)
+	    else:
+            	gap_length = int(length/FLAGS.amount_of_frames_as_input)
+        else:
+            gap_length = length
 
-            # choose random amount of time frames for a gab
-            if(FLAGS.duration_of_a_gab):
-                gap_duration = FLAGS.duration_of_a_gab
+        time_fr = start_fr
+        while(time_fr < gap_length+start_fr):
+
+            # choose random amount of time frames for a gap
+            if(FLAGS.duration_of_a_gap):
+                gap_duration = FLAGS.duration_of_a_gap
             else:
-                gap_duration = int(np.random.normal(10, 5))  # between 0.1s and 1s (frame rate 60 fps)
+                gap_duration = int(np.random.normal(120, 20))  # between 0.1s and 1s (frame rate 60 fps)
 
-            # choose random markers for the gab
-            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False,p=probabilities)
+            # choose random markers for the gap
+            random_markers = np.random.choice(41, FLAGS.amount_of_missing_markers, replace=False)#,p=probabilities)
 
-            for gab_time in range(gap_duration):
+            for gap_time in range(gap_duration):
 
-                for marker in random_markers:
+                for muptipl_inputs in range(FLAGS.amount_of_frames_as_input):
 
-                    mask[batch][time_fr][marker:(marker + 1)] = 0
-                    mask[batch][time_fr][marker + 41:(marker + 41 + 1)] = 0
-                    mask[batch][time_fr][marker + 82:(marker + 82 + 1)] = 0
+                    for marker in random_markers:
 
-                time_fr += 1
+                        mask[batch][time_fr][marker + 123*muptipl_inputs] = 0
+                        mask[batch][time_fr][marker + 41+ 123*muptipl_inputs] = 0
+                        mask[batch][time_fr][marker + 82+ 123*muptipl_inputs] = 0
 
-                if (time_fr >= mask_size[1]):
+                time_fr+= 1
+                if (time_fr >= gap_length+start_fr):
                     break
 
             # Make sure not to use the same markers twice in a raw
@@ -630,9 +675,26 @@ def cont_gap_mask(length=0,test=False):
     return mask
 
 
-if __name__ == '__main__':
+def save_motion(motion, file_name):
+    """
+    Save the motion into a csv file
+    :param motion:     sequence of the motion 3d coordinates
+    :param file_name:  file to write the motion into
+    :return:           nothing
+    """
 
-    print('DID YOU CHANGED THE TEST_FILE ?')
+    with open(file_name, 'w') as fp:
+
+        if not FLAGS.reccurent:
+            # Reshape input - to have just one frame at a time
+            to_output = motion.reshape(-1, FLAGS.frame_size)
+        else:
+            to_output = motion
+
+        np.savetxt(fp, to_output, delimiter=",")
+        print("Motion was written to " + file_name)
+
+if __name__ == '__main__':
 
     learning_rate = FLAGS.learning_rate
     batch_size = FLAGS.batch_size
@@ -658,14 +720,11 @@ if __name__ == '__main__':
     ae = learning(data, max_val, learning_rate, batch_size, dropout)
 
     # TEST it
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose)
+    rmse = test(ae, FLAGS.data_dir + '/../test_seq/boxing.binary', max_val, mean_pose,True)
     print("\nOur RMSE for boxing is : ", rmse)
 
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose)
-    print("\nOur RMSE for basketball is : ", rmse)
-
-    rmse = test(ae, FLAGS.data_dir + '/../test_seq/salto.binary', max_val, mean_pose)
-    print("\nOur RMSE for the jump turn is : ", rmse)
+    '''rmse = test(ae, FLAGS.data_dir + '/../test_seq/basketball_2.binary', max_val, mean_pose,True)
+    print("\nOur RMSE for basketball is : ", rmse)'''
 
     # Close Tf session
     ae.session.close()
