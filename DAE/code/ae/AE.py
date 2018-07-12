@@ -8,10 +8,11 @@ from utils.flags import FLAGS
 
 
 class AutoEncoder(object):
-    """Generic denoising autoencoder (AE).
+    """ Generic denoising autoencoder (AE).
 
-    We use denoising AE: for the input noise is injected and the nextwork tries to recover original data
-    More detail can be founded in the original paper: http://www.jmlr.org/papers/volume11/vincent10a/vincent10a.pdf
+    In denoising AE noise is injected to the input and the network tries to recover original data
+    More detail can be founded in the original paper:
+    http://www.jmlr.org/papers/volume11/vincent10a/vincent10a.pdf
 
     It is am empty class
     to be parent for the Flat and Hierarchical AE.
@@ -40,42 +41,50 @@ class AutoEncoder(object):
         self.__scaling_factor = 0.1
         self.__default_value = FLAGS.defaul_value
 
-        self.__max_val = data_info._max_val  # maximal value in the dataset (used for scaling it to interval [-1,1] and back)
+        self.__max_val = data_info._max_val  # maximal value in the dataset
 
         #################### Add the DATASETS to the GRAPH ###############3
 
         #### 1 - TRAIN ###
-        self._train_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._train_shape)
-        self._train_data = tf.Variable(self._train_data_initializer, trainable=False, collections=[],
-                                       name='Train_data')
+        self._train_data_initializer = tf.placeholder(dtype=tf.float32,
+                                                      shape=data_info._train_shape)
+        self._train_data = tf.Variable(self._train_data_initializer, trainable=False,
+                                       collections=[], name='Train_data')
+
         if FLAGS.Layer_wise_Pretraining:  # Have more epochs: also for the pretraining
-            train_frames = tf.train.slice_input_producer([self._train_data],
-                                                         num_epochs=FLAGS.training_epochs + FLAGS.num_hidden_layers * FLAGS.pretraining_epochs)
+            train_frames = tf.train.slice_input_producer(
+                [self._train_data], num_epochs=FLAGS.training_epochs +
+                FLAGS.num_hidden_layers * FLAGS.pretraining_epochs)
         else:
-            train_frames = tf.train.slice_input_producer([self._train_data], num_epochs=FLAGS.training_epochs)
-        self._train_batch = tf.train.shuffle_batch(train_frames, batch_size=FLAGS.batch_size, capacity=5000,
-                                                   min_after_dequeue=1000, name='Train_batch')
+            train_frames = tf.train.slice_input_producer([self._train_data],
+                                                         num_epochs=FLAGS.training_epochs)
+
+        self._train_batch = tf.train.shuffle_batch\
+            (train_frames, batch_size=FLAGS.batch_size, capacity=5000,
+             min_after_dequeue=1000, name='Train_batch')
 
         #### 2 - VALIDATE, can be used as TEST ###
         # (When we are optimizing hyper-parameters, this dataset stores as a validation dataset,
         #  when we are testing the system, this dataset stores a test dataset )
-        self._valid_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._eval_shape)  # 1033 at home
-        self._valid_data = tf.Variable(self._valid_data_initializer, trainable=False, collections=[],
-                                       name='Valid_data')
-        valid_frames = tf.train.slice_input_producer([self._valid_data], num_epochs=FLAGS.training_epochs)
-        self._valid_batch = tf.train.shuffle_batch(valid_frames, batch_size=FLAGS.batch_size, capacity=5000,
-                                                   min_after_dequeue=1000, name='Valid_batch')
+        self._valid_data_initializer = tf.placeholder(dtype=tf.float32, shape=data_info._eval_shape)
+        self._valid_data = tf.Variable(self._valid_data_initializer, trainable=False,
+                                       collections=[], name='Valid_data')
+        valid_frames = tf.train.slice_input_producer([self._valid_data],
+                                                     num_epochs=FLAGS.training_epochs)
+        self._valid_batch = tf.train.shuffle_batch\
+            (valid_frames, batch_size=FLAGS.batch_size, capacity=5000,
+             min_after_dequeue=1000, name='Valid_batch')
 
     def construct_graph(self, input_seq_pl, dropout, test=False, just_middle=False):
 
         """Get the output of the autoencoder
 
-        This is a dummy function, which has to be defined in each specific class, which inherits class AE
+        This is a dummy function, it has to be defined in each specific class, inheriting class AE
 
         Args:
-          input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+          input_seq_pl:     tf placeholder for ae input data: [batch_size, sequence_length, DoF]
           dropout:          how much of the input neurons will be activated, value in [0,1]
-          just_middle :     will indicate if we want to extract only the middle layer of the network
+          just_middle :     indicate if we want to extract only the middle layer of the network
         """
 
         return input_seq_pl
@@ -93,16 +102,18 @@ class AutoEncoder(object):
 
         random_size = [FLAGS.batch_size, FLAGS.chunk_length,
                        int(FLAGS.frame_size * FLAGS.amount_of_frames_as_input / 3)]
-        tensor_size = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input]
+        tensor_size = [FLAGS.batch_size, FLAGS.chunk_length, FLAGS.frame_size *
+                       FLAGS.amount_of_frames_as_input]
 
         # Make sure that all coordinates of each point are either missing or present
         random_missing_points = tf.random_uniform(random_size)
-        stacked_coords = tf.stack([random_missing_points, random_missing_points, random_missing_points], axis=3)
+        stacked_coords = tf.stack([random_missing_points, random_missing_points,
+                                   random_missing_points], axis=3)
         # Make every 3 markers being the same
         stacked_coords = tf.transpose(stacked_coords, perm=[0, 1, 3, 2])
 
-        random_missing_coords = tf.reshape(stacked_coords,
-                                           [tf.shape(stacked_coords)[0], tf.shape(stacked_coords)[1], -1])
+        random_missing_coords = tf.reshape\
+            (stacked_coords, [tf.shape(stacked_coords)[0], tf.shape(stacked_coords)[1], -1])
 
         mask = tf.where(random_missing_coords < 1 - prob_of_missing,
                         tf.ones(tensor_size), tf.zeros(tensor_size))
@@ -139,7 +150,7 @@ class AutoEncoder(object):
 
     @staticmethod
     def _activate(x, w, b, transpose_w=False):
-        y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))  # was sigmoid before
+        y = tf.tanh(tf.nn.bias_add(tf.matmul(x, w, transpose_b=transpose_w), b))
         return y
 
 
@@ -164,11 +175,11 @@ def simulate_missing_markets(input_position, mask, const):
         return output
 
 
-def use_existing_markers(input, result, mask, const):
-    """ We can use the information we have in place of the markers we know instead of the output of the network
+def use_existing_markers(inputs, result, mask, const):
+    """ Use the information we know instead of the output of the network for not-missing markers
 
        Args:
-         input:  the data we have
+         inputs:  the data we have
          result: the output of the network
          mask:   the binary matrix of missing markers
        Returns:
@@ -178,13 +189,13 @@ def use_existing_markers(input, result, mask, const):
     # Separate the result of the network network
 
     result_without_markers_we_had = np.multiply(result, 1 - mask)  # new info
-    the_marker_we_had = np.multiply(input, mask)  # what we knew before
+    the_marker_we_had = np.multiply(inputs, mask)  # what we knew before
 
     if const == 0:
         output = the_marker_we_had + result_without_markers_we_had
     else:
         # We need first to subtract constant value from the "input"
-        original_input = input - tf.multiply(input, 1 - mask)
+        original_input = inputs - tf.multiply(inputs, 1 - mask)
         # Now we are ready to combine them
         output = original_input + result_without_markers_we_had
 

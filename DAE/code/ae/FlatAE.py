@@ -1,3 +1,6 @@
+"""
+This file contains implementation of the core model: Denoising AutoEncoder
+"""
 from __future__ import division
 from __future__ import print_function
 
@@ -41,7 +44,7 @@ class FlatAutoEncoder(AutoEncoder):
 
             with tf.variable_scope("AE_Variables"):
 
-                ##############        SETUP VARIABLES       ###############################################
+                ##############        SETUP VARIABLES       #####################################
 
                 for i in xrange(self.num_hidden_layers + 1):  # go over all layers
 
@@ -58,7 +61,8 @@ class FlatAutoEncoder(AutoEncoder):
                             size, forget_bias=1.0, state_is_tuple=True)
                         # Apply dropout on the hidden layers
                         if size != self.__shape[-1]:
-                            hidden_cell = tf.contrib.rnn.DropoutWrapper(cell=basic_cell, output_keep_prob=FLAGS.dropout)
+                            hidden_cell = tf.contrib.rnn.DropoutWrapper\
+                                (cell=basic_cell, output_keep_prob=FLAGS.dropout)
                             return hidden_cell
                         else:
                             return basic_cell
@@ -66,24 +70,29 @@ class FlatAutoEncoder(AutoEncoder):
                     self._RNN_cell = tf.contrib.rnn.MultiRNNCell(
                         [lstm_cell(sz) for sz in lstm_sizes], state_is_tuple=True)
 
-                ##############        DEFINE THE NETWORK     ###############################################
+                ##############        DEFINE THE NETWORK     ###################################
 
                 # Declare a mask for simulating missing_values
-                self._mask = tf.placeholder(dtype=tf.float32, shape=[FLAGS.batch_size, FLAGS.chunk_length,
-                                                                     FLAGS.frame_size * FLAGS.amount_of_frames_as_input],
+                self._mask = tf.placeholder(dtype=tf.float32,
+                                            shape=[FLAGS.batch_size, FLAGS.chunk_length,
+                                                   FLAGS.frame_size *
+                                                   FLAGS.amount_of_frames_as_input],
                                             name='Mask_of_mis_markers')
                 self._mask_generator = self.binary_random_matrix_generator(FLAGS.missing_rate)
 
-                # Reminder: we use Denoising AE (http://www.jmlr.org/papers/volume11/vincent10a/vincent10a.pdf)
+                # Reminder: we use Denoising AE
+                # (http://www.jmlr.org/papers/volume11/vincent10a/vincent10a.pdf)
 
                 ''' 1 - Setup network for TRAINing '''
+                # Input noisy data and reconstruct the original one
                 self._input_ = add_noise(self._train_batch, variance_coef, data_info._data_sigma)
-                self._target_ = self._train_batch  # Input noisy data and reconstruct the original one
+                self._target_ = self._train_batch
 
                 # Define output and loss for the training data
-                self._output = self.construct_graph(self._input_, FLAGS.dropout)  # process batch of sequences
-                self._reconstruction_loss = loss_reconstruction(self._output, self._target_, self.max_val)
-                tf.add_to_collection('losses', self._reconstruction_loss)  # add weight decay loses
+                self._output = self.construct_graph(self._input_, FLAGS.dropout)
+                self._reconstruction_loss = loss_reconstruction(self._output, self._target_,
+                                                                self.max_val)
+                tf.add_to_collection('losses', self._reconstruction_loss)
                 self._loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
                 ''' 2 - Setup network for TESTing '''
@@ -91,27 +100,26 @@ class FlatAutoEncoder(AutoEncoder):
                 self._valid_target_ = self._valid_batch
 
                 # Define output
-                self._valid_output = self.construct_graph(self._valid_input_, 1) # no dropout in testing
+                self._valid_output = self.construct_graph(self._valid_input_, 1)
 
                 # Define loss
                 self._valid_loss = loss_reconstruction(self._valid_output, self._valid_target_,
-                                                       self.max_val)  # /  tf.cast(size, tf.float32) #(batch_size*chunk_length)
+                                                       self.max_val)
 
-    def construct_graph(self, input_seq_pl, dropout, just_middle=False):
+    def construct_graph(self, input_seq_pl, dropout):
 
         """ Contruct a tensofrlow graph for the network
 
         Args:
-          input_seq_pl:     tf placeholder for ae input data of size [batch_size, sequence_length, DoF]
+          input_seq_pl:     tf placeholder for ae input data [batch_size, sequence_length, DoF]
           dropout:          how much of the input neurons will be activated, value in range [0,1]
-          just_middle :     will indicate if we want to extract only the middle layer of the network
         Returns:
           Tensor of output
         """
 
         network_input = simulate_missing_markets(input_seq_pl, self._mask, self.default_value)
 
-        if FLAGS.reccurent == False:
+        if FLAGS.reccurent is False:
             last_output = network_input[:, 0, :]
 
             numb_layers = self.num_hidden_layers + 1
@@ -126,13 +134,13 @@ class FlatAutoEncoder(AutoEncoder):
 
                 last_output = self._activate(last_output, w, b)
 
-            output = tf.reshape(last_output, [self.batch_size, 1, FLAGS.frame_size * FLAGS.amount_of_frames_as_input])
+            output = tf.reshape(last_output, [self.batch_size, 1,
+                                              FLAGS.frame_size * FLAGS.amount_of_frames_as_input])
 
         else:
             output, last_states = tf.nn.dynamic_rnn(
                 cell=self._RNN_cell,
                 dtype=tf.float32,
-                #sequence_length=[self.sequence_length for i in range(self.batch_size)],
                 inputs=network_input)
 
             # Reuse variables
@@ -210,10 +218,10 @@ class FlatAutoEncoder(AutoEncoder):
         # Add weight to the loss function for weight decay
         if wd is not None and FLAGS.reccurent == False:
 
-            if(i==1):
+            if i == 1:
                 print('We apply weight decay')
 
-            weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='weight_' + str(i) + '_loss')
+            weight_decay = tf.multiply(tf.nn.l2_loss(self[name_w]), wd, name='w_'+str(i)+'_loss')
             tf.add_to_collection('losses', weight_decay)
 
         # Add the histogram summary
@@ -227,14 +235,14 @@ class FlatAutoEncoder(AutoEncoder):
         if i < self.num_hidden_layers:
             # Hidden layer fixed weights
             # which are used after pretraining before fine-tuning
-            self[name_w + "_fixed"] = tf.get_variable(name=name_w + "_fixed",
-                                                      initializer=tf.random_uniform(w_shape, -1 * a, a),
-                                                      trainable=False)
+            self[name_w + "_fixed"] = tf.get_variable\
+                (name=name_w + "_fixed", initializer=tf.random_uniform(w_shape, -1 * a, a),
+                 trainable=False)
             # Hidden layer fixed biases
-            self[name_b + "_fixed"] = tf.get_variable(name_b + "_fixed", initializer=tf.zeros(b_shape),
-                                                      trainable=False)
+            self[name_b + "_fixed"] = tf.get_variable\
+                (name_b + "_fixed", initializer=tf.zeros(b_shape), trainable=False)
 
-            # Pretraining output training biases
+            # Pre-training output training biases
             name_b_out = self._biases_str.format(i + 1) + "_out"
             b_shape = (self.__shape[i],)
             b_init = tf.zeros(b_shape)
@@ -271,6 +279,6 @@ class FlatAutoEncoder(AutoEncoder):
         last_output = self._activate(last_output, self._w(n), self._b(n))
 
         out = self._activate(last_output, self._w(n), self._b(n, "_out"),
-                             transpose_w=True)  # TODO: maybe try without symmerty
+                             transpose_w=True)
 
         return out

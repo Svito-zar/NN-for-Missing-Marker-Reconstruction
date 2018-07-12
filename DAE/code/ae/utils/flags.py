@@ -6,7 +6,6 @@ import sys
 
 import tensorflow as tf
 
-
 def home_out(path):
   return pjoin(os.environ['HOME'], 'tmp', 'MoCap', path)
 
@@ -14,7 +13,6 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 """  							Fine-tuning Parameters 				"""
-
 
 #                       Flags about the sequence processing
 
@@ -57,9 +55,6 @@ flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as i
 flags.DEFINE_integer("num_hidden_layers",2,"Number of hidden layers")
 flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
 
-flags.DEFINE_boolean('Hierarchical', False,
-                     'Whether AE is hierarchical')
-
 #                       Flags about the missing markers
 flags.DEFINE_boolean('missing_markers_are_random', True,' Whether we having missing markers at random positions, or the whole body part')
 flags.DEFINE_float('missing_rate', 0.2, 'What fraction of the input is missing during the testing')
@@ -69,33 +64,18 @@ flags.DEFINE_float('defaul_value', 0, 'What number we will put in place of the m
 
 flags.DEFINE_integer('seed', 123456, 'Random seed')
 
-#  						Other parameters
 
-flags.DEFINE_integer('middle_layer', 1,
-                     "Which hidden layer is view as a middle layer with the representation")
-
-flags.DEFINE_float('zero_bound', 1.0e-9,
-                   'Value to use as buffer to avoid '
-                   'numerical issues at 0')
-flags.DEFINE_float('one_bound', 1.0 - 1.0e-9,
-                   'Value to use as buffer to avoid numerical issues at 1')
-
-flags.DEFINE_float('flush_secs', 120, 'Number of seconds to flush summaries')
-
-
-# Directories
-
-
+#                           Directories
 
 flags.DEFINE_string('data_dir',#'/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
                     #'/home/taras/Documents/Datasets/CMU_c3d/30k_new',
 		     '/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L',
                     'Directory to put the training data.')
 
-flags.DEFINE_string('model_dir', '/home/taras/storage/MoCap/models',
+flags.DEFINE_string('model_dir', home_out('models'),
                     'Directory to put the summary data')
 
-flags.DEFINE_string('params_file','/home/taras/storage/MoCap/params',
+flags.DEFINE_string('params_file',home_out('params'),
                     'File for saving the parameters values')
 
 flags.DEFINE_string('summary_dir', home_out('summaries_exp'), 
@@ -108,18 +88,7 @@ flags.DEFINE_string('results_file', home_out('results.txt'),
                     'Filey to put the experimental results')
 
 
-# TensorBoard
-flags.DEFINE_boolean('no_browser', True,
-                     'Whether to start browser for TensorBoard')
-
-# Python
-flags.DEFINE_string('python', sys.executable,
-                    'Path to python executable')
-
-# ADDITIONAL Flags
-flags.DEFINE_string(
-    "model", "small",
-    "A type of model. Possible options are: small, medium, large.")
+                                # ADDITIONAL Flags
 flags.DEFINE_string("save_path", None,
                     "Model output directory.")
 flags.DEFINE_bool("use_fp16", False,

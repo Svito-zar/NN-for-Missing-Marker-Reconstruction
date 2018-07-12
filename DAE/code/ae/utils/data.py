@@ -3,16 +3,12 @@
 from __future__ import division
 from __future__ import print_function
 
-#import btk
-import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d as p3
-from mpl_toolkits.mplot3d import Axes3D
+#import btk    #uncomment if you want to pre-process c3d files by yourself
 
-from matplotlib import animation
+import mpl_toolkits.mplot3d.axes3d as p3
+import matplotlib.pyplot as plt
 
 import numpy as np
-from six.moves import xrange  # pylint: disable=redefined-builtin
-
 
 from flags import *
 
@@ -46,7 +42,7 @@ class DataSet(object):
         """Return the next batch of sequences from this data set."""
         batch_numb = self._index_in_epoch
         self._index_in_epoch += self._batch_size
-        if self._index_in_epoch > self._num_chunks:
+        if self._index_in_epoch > self._num_sequences:
             # Finished epoch
             self._epochs_completed += 1
             # Shuffle the data
@@ -71,7 +67,7 @@ def read_c3d_file(file_name):
     Reads a file from CMU MoCap dataset in the c3d format
 
        Returns:
-            sequence [sequence_length,frame_size] - local channels transformed to the hips-centered coordinates
+            sequence [sequence_length,frame_size] - 3d coords in the hips-centered coordinates
             hips [frame_size]                     - coordinates of the hips
     Args:
         filename - adress of the file with the MoCap data in the c3d format
@@ -115,7 +111,7 @@ def read_c3d_file(file_name):
 
     missing_markers = list()
 
-    while (True):
+    while True:
         try:
             # Get the next label
             label = name + labels_file.readline().splitlines()[0]
@@ -123,7 +119,7 @@ def read_c3d_file(file_name):
                 print(label)
             next_point = acq.GetPoint(label).GetValues()
         except IndexError:
-            print('Read', point_id, 'skeleton 3d points during', acq.GetPointFrameNumber(), 'time frames')
+            print('Read', point_id, 'skeleton markers during', acq.GetPointFrameNumber(), 'frames')
             break
 
         # Check if the data is there
@@ -135,7 +131,8 @@ def read_c3d_file(file_name):
                     missing_markers.append(point_id)
 
         # Concatanate curr chunks to all of them
-        all_3d_coords = np.dstack([all_3d_coords, next_point]) if all_3d_coords.size else np.array(next_point)
+        all_3d_coords = np.dstack([all_3d_coords, next_point]) if all_3d_coords.size\
+            else np.array(next_point)
 
         point_id += 1
 
@@ -162,10 +159,11 @@ def read_c3d_file(file_name):
             if marker_id > 22 and marker_id < 27:  # if that are the hips
                 all_3d_coords[time_step][coord][marker_id] = 0  # center - hips coords
             else:
-                all_3d_coords[time_step][coord][marker_id] = all_3d_coords[amount_of_frames - 1][coord][marker_id]
+                all_3d_coords[time_step][coord][marker_id] = \
+                    all_3d_coords[amount_of_frames - 1][coord][marker_id]
 
-    # Make a proper array shape
-    mocap_seq = all_3d_coords.reshape(all_3d_coords.shape[0], -1)  # Concatanate all coords into one vector
+    # Make a proper array shape : concatenate all coords into one vector
+    mocap_seq = all_3d_coords.reshape(all_3d_coords.shape[0], -1)
 
     # Calculate max_val
     max = np.amax(np.absolute(mocap_seq))
@@ -184,7 +182,7 @@ def read_unlabeled_data(train_dir, evaluate):
 
       Args:
           train_dir - address to the train, dev and eval datasets
-          evaluate - flag : weather we want to evaluate a network or we just optimize hyperparameters
+          evaluate - flag : weather we want to evaluate a network or just optimize hyperparameters
       Returns:
           datasets - object of class DataSets, containing Train and Eval datasets
           max_val - maximal value in the raw data ( for post-processing)
@@ -209,7 +207,7 @@ def read_unlabeled_data(train_dir, evaluate):
 
     train_data = read_a_folder(data_dir + '/train')
 
-    [amount_of_train_strings, seq_length, DoF] = train_data.shape
+    [amount_of_train_strings, seq_length, dof] = train_data.shape
     print('\n' + str(amount_of_train_strings) + ' sequences with length ' + str(
         seq_length) + ' will be used for training')
 
@@ -221,9 +219,9 @@ def read_unlabeled_data(train_dir, evaluate):
     else:
         test_data = read_a_folder(data_dir + '/dev')
 
-    [amount_of_test_strings, seq_length, DoF] = test_data.shape
-    print(
-        '\n' + str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for testing')
+    [amount_of_test_strings, seq_length, dof] = test_data.shape
+    print('\n' + str(amount_of_test_strings) + ' sequences with length ' +
+          str(seq_length) + ' will be used for testing')
 
     # Do mean normalization : substract mean pose
     mean_pose = train_data.mean(axis=(0, 1))
@@ -255,7 +253,8 @@ def read_unlabeled_data(train_dir, evaluate):
 
     # Check if we have enough data
     if data_sets.train._num_sequences < data_sets.train._batch_size:
-        print('ERROR: We have got not enough data! Reduce batch_size or increase amount of subfolder you use.')
+        print('ERROR: We have got not enough data!'
+              ' Reduce batch_size or increase amount of subfolder you use.')
         exit(1)
 
     return data_sets, max_val, mean_pose
@@ -271,8 +270,9 @@ def read_a_folder(curr_dir):
         for filename in os.listdir(curr_dir + '/' + sub_dir):
             curr_sequence = read_c3d_file(curr_dir + '/' + sub_dir + '/' + filename)
 
+            # Split sequence into chunks
             curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in
-                                    xrange(0, len(curr_sequence) - chunk_length, stride)])  # Split sequence into chunks
+                                    xrange(0, len(curr_sequence) - chunk_length, stride)])
 
             if curr_chunks.shape[0] > 0:
                 # Concatanate curr chunks to all of them
@@ -293,7 +293,7 @@ def add_noise(x, variance_multiplier, sigma):
            Add Gaussian noise to the data
            Args:
                x                   - input vector
-               variance_multiplier - coefficient to multiple on, when we calculate a variance of the noise
+               variance_multiplier - coefficient to multiple a variance of the noise on
                sigma               - variance of the dataset
            Returns:
                x - output vector, noisy data
@@ -310,7 +310,7 @@ def read_dataset_and_write_in_binary(evaluate):
               And write them in the binary format.
               Will get the address of the folder with the data from flags.py
               Args:
-                  evaluate - flag, indicating weather we are going to evaluate the system or we are optimizing hyper-parameters
+                  evaluate - flag, weather we evaluate the system or we optimize hyper-parameters
               Returns:
                   will write binary files in the same folder as the original data
     """
@@ -349,11 +349,15 @@ def read_dataset_and_write_in_binary(evaluate):
 def read_binary_dataset(dataset_name):
     filename = FLAGS.data_dir + '/' + dataset_name + '.binary'
     dataset = np.fromfile(filename)
-    amount_of_frames = int(dataset.shape[0] / (FLAGS.chunk_length * FLAGS.frame_size * FLAGS.amount_of_frames_as_input))
-    # Clip array so that it divides exactly into the inputs we want (frame_size * amount_of_frames_as_input)
-    dataset = dataset[0:amount_of_frames * FLAGS.chunk_length * FLAGS.frame_size * FLAGS.amount_of_frames_as_input]
+    amount_of_frames = int(dataset.shape[0] / (FLAGS.chunk_length * FLAGS.frame_size *
+                                               FLAGS.amount_of_frames_as_input))
+
+    # Clip array so that it divides exactly into the inputs we want
+    dataset = dataset[0:amount_of_frames * FLAGS.chunk_length * FLAGS.frame_size *
+                      FLAGS.amount_of_frames_as_input]
     # Reshape
-    dataset = dataset.reshape(amount_of_frames, FLAGS.chunk_length, FLAGS.frame_size * FLAGS.amount_of_frames_as_input)
+    dataset = dataset.reshape(amount_of_frames, FLAGS.chunk_length, FLAGS.frame_size
+                              * FLAGS.amount_of_frames_as_input)
     return dataset
 
 
@@ -375,14 +379,15 @@ def read_datasets_from_binary():
 
     train_data = read_binary_dataset('train')
     [amount_of_train_strings, seq_length, DoF] = train_data.shape
-    print('\n' + str(amount_of_train_strings) + ' sequences with length ' + str(seq_length) + ' and ' + str(
-        FLAGS.amount_of_frames_as_input) + ' frames in each will be used for training')
+    print('\n'+str(amount_of_train_strings)+' sequences with length '+str(seq_length) + ' and '
+          + str(FLAGS.amount_of_frames_as_input) + ' frames in each will be used for training')
 
     #         #########             Get TEST data                  ###########
 
     test_data = read_binary_dataset('eval')
     [amount_of_test_strings, seq_length, DoF] = test_data.shape
-    print(str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) + ' will be used for testing')
+    print(str(amount_of_test_strings) + ' sequences with length ' + str(seq_length) +
+          ' will be used for testing')
 
     # Shuffle the data
     perm = np.arange(amount_of_train_strings)
@@ -401,7 +406,8 @@ def read_datasets_from_binary():
 
     # Check if we have enough data
     if data_sets.train._num_sequences < data_sets.train._batch_size:
-        print('ERROR: We have got not enough data! Reduce batch_size or increase amount of subfolder you use.')
+        print('ERROR: We have got not enough data! '
+              'Reduce batch_size or increase amount of subfolder you use.')
         exit(1)
 
     return data_sets, max_val, mean_pose
@@ -436,10 +442,11 @@ def read_test_seq_from_binary(binary_file_name):
     read_seq = np.fromfile(binary_file_name)
     # Reshape
     read_seq = read_seq.reshape(-1, FLAGS.frame_size)
-    amount_of_frames = int(read_seq.shape[0] / (FLAGS.chunk_length * FLAGS.amount_of_frames_as_input))
+    amount_of_frames = int(read_seq.shape[0]/ (FLAGS.chunk_length*FLAGS.amount_of_frames_as_input))
+
     if amount_of_frames > 0:
-        # Clip array so that it divides exactly into the inputs we want (frame_size * amount_of_frames_as_input)
-        read_seq = read_seq[0:amount_of_frames * FLAGS.chunk_length * FLAGS.amount_of_frames_as_input]
+        # Clip array so that it divides exactly into the inputs we want
+        read_seq = read_seq[0:amount_of_frames*FLAGS.chunk_length* FLAGS.amount_of_frames_as_input]
 
     # Reshape
     read_seq = read_seq.reshape(-1, FLAGS.frame_size * FLAGS.amount_of_frames_as_input)
@@ -453,7 +460,8 @@ def loss_reconstruction(output, target, max_vals):
     Args:
       output:    tensor of net output
       target:    tensor of net we are trying to reconstruct
-      max_vals:  array of absolute maximal values in the dataset, is used for scaling an error to the original space
+      max_vals:  array of absolute maximal values in the dataset,
+                 is used for scaling an error to the original space
     Returns:
       Scalar tensor of mean eucledean distance
     """
@@ -467,7 +475,16 @@ def loss_reconstruction(output, target, max_vals):
         squared_error = tf.reduce_mean(tf.square(error_scaled))
         return squared_error
 
-def visualize(mocap_seq, another_seq = None):
+def visualize(mocap_seq, another_seq=None):
+    """ Make 3d visualization of 3 key frames from the mocap sequence
+
+    Args:
+      mocap_seq:    motion sequence to visualize
+      another_seq:  motion sequence to compare to
+    Returns:
+      nothing
+    """
+
 
     all_3d_coords = mocap_seq.reshape(-1, 3, 41)  # Concatanate all coords into one vector
 
@@ -483,92 +500,103 @@ def visualize(mocap_seq, another_seq = None):
     for step in range(start_frame, start_frame + 15, 5):
 
         # Draw one point cloud
-        point_cloud(ax, all_3d_coords,step)
+        point_cloud(ax, all_3d_coords, step)
 
         if another_seq is not None:
             # Draw another point cloud
-            point_cloud(ax,another_3d_coords, step, True, all_3d_coords)
+            point_cloud(ax, another_3d_coords, step, True, all_3d_coords)
 
     plt.show()
 
 
 def point_cloud(ax, all_3d_coords, step, diff_colors=False, other_3d_coords=None):
+    """ plot 3d points cloud + links to another cloud, if needed (other_3d_coords is not None)
 
-        start_frame = 320
-        treshhold_0 = 14
-        treshhold_1 = 20
-        treshhold_2 = 27
-        coef = 180
+    Args:
+      ax:               axis to plot at
+      all_3d_coords:    main 3d sequence
+      step:             at which time-step do we want to be
+      diff_colors:      if we want to use different colors
+      other_3d_coords: the second 3d sequence
+    Returns:
+      nothing
+    """
 
-        colors = ['#000000', '#000000', '#bebebe', '#bebebe']
+    start_frame = 320
+    treshhold_0 = 14
+    treshhold_1 = 20
+    treshhold_2 = 27
+    coef = 180
 
-        if diff_colors:
-            colors = ['#228b22', '#228b22', '#7fffd4', '#7fffd4']
+    colors = ['#000000', '#000000', '#bebebe', '#bebebe']
 
-        # Visualize a 3D point cloud
-        ax.scatter3D(all_3d_coords[step][0][:treshhold_0],
-                     np.add(all_3d_coords[step][1][:treshhold_0], (step - start_frame) * coef),
-                     all_3d_coords[step][2][:treshhold_0], c=colors[0], marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_0:treshhold_1],
-                     np.add(all_3d_coords[step][1][treshhold_0:treshhold_1], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_0:treshhold_1], c=colors[1], marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_1:treshhold_2],
-                     np.add(all_3d_coords[step][1][treshhold_1:treshhold_2], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_1:treshhold_2], c=colors[2], marker='o')
-        ax.scatter3D(all_3d_coords[step][0][treshhold_2:],
-                     np.add(all_3d_coords[step][1][treshhold_2:], (step - start_frame) * coef),
-                     all_3d_coords[step][2][treshhold_2:], c=colors[3], marker='o')
+    if diff_colors:
+        colors = ['#228b22', '#228b22', '#7fffd4', '#7fffd4']
 
-        # Find which points are present
+    # Visualize a 3D point cloud
+    ax.scatter3D(all_3d_coords[step][0][:treshhold_0],
+                 np.add(all_3d_coords[step][1][:treshhold_0], (step - start_frame) * coef),
+                 all_3d_coords[step][2][:treshhold_0], c=colors[0], marker='o')
+    ax.scatter3D(all_3d_coords[step][0][treshhold_0:treshhold_1], np.add(
+        all_3d_coords[step][1][treshhold_0:treshhold_1], (step - start_frame) * coef),
+                 all_3d_coords[step][2][treshhold_0:treshhold_1], c=colors[1], marker='o')
+    ax.scatter3D(all_3d_coords[step][0][treshhold_1:treshhold_2], np.add(
+        all_3d_coords[step][1][treshhold_1:treshhold_2], (step - start_frame) * coef),
+                 all_3d_coords[step][2][treshhold_1:treshhold_2], c=colors[2], marker='o')
+    ax.scatter3D(all_3d_coords[step][0][treshhold_2:],
+                 np.add(all_3d_coords[step][1][treshhold_2:], (step - start_frame) * coef),
+                 all_3d_coords[step][2][treshhold_2:], c=colors[3], marker='o')
 
-        key_point_arm = []
-        for point in list([0, 1, 2, 7, 8, 9]):
-            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
-                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
-                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
-                        key_point_arm.append(point)
-        key_point_arm = np.array(key_point_arm)
+    # Find which points are present
 
-        #print(key_point_arm)
+    key_point_arm = []
+    for point in list([0, 1, 2, 7, 8, 9]):
+        if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
+            if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
+                if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
+                    key_point_arm.append(point)
+    key_point_arm = np.array(key_point_arm)
 
-        key_point_leg = []
-        for point in list([27, 34]):  # 28, 35
-            if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
-                if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
-                    if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
-                        key_point_leg.append(point)
-        key_point_leg = np.array(key_point_leg)
+    key_point_leg = []
+    for point in list([27, 34]):
+        if all_3d_coords[step][0][point] != 0 and all_3d_coords[step][0][point + 1] != 0:
+            if all_3d_coords[step][1][point] != 0 and all_3d_coords[step][1][point + 1] != 0:
+                if all_3d_coords[step][2][point] != 0 and all_3d_coords[step][2][point + 1] != 0:
+                    key_point_leg.append(point)
+    key_point_leg = np.array(key_point_leg)
 
-        # Add lines in between
+    # Add lines in between
 
-        for point in key_point_arm:
-            xline = all_3d_coords[step][0][point:point + 2]
-            yline = np.add(all_3d_coords[step][1][point:point + 2], (step - start_frame) * coef)
-            zline = all_3d_coords[step][2][point:point + 2]
-            ax.plot(xline, yline, zline, c=colors[0])
-        for point in key_point_leg:
-            xline = all_3d_coords[step][0][point:point + 3:2]
-            yline = np.add(all_3d_coords[step][1][point:point + 3:2], (step - start_frame) * coef)
-            zline = all_3d_coords[step][2][point:point + 3:2]
-            ax.plot(xline, yline, zline, c=colors[3])
+    for point in key_point_arm:
+        xline = all_3d_coords[step][0][point:point + 2]
+        yline = np.add(all_3d_coords[step][1][point:point + 2], (step - start_frame) * coef)
+        zline = all_3d_coords[step][2][point:point + 2]
+        ax.plot(xline, yline, zline, c=colors[0])
+
+    for point in key_point_leg:
+        xline = all_3d_coords[step][0][point:point + 3:2]
+        yline = np.add(all_3d_coords[step][1][point:point + 3:2], (step - start_frame) * coef)
+        zline = all_3d_coords[step][2][point:point + 3:2]
+        ax.plot(xline, yline, zline, c=colors[3])
 
 
-        # Add lines between our different point clouds
+    # Add lines between our different point clouds
 
-        if other_3d_coords is not None:
-            for point in range(41):
-                xline = [all_3d_coords[step][0][point], other_3d_coords[step][0][point]]
-                yline = np.add([all_3d_coords[step][1][point], other_3d_coords[step][1][point]], (step - start_frame) * coef)
-                zline = [all_3d_coords[step][2][point], other_3d_coords[step][2][point]]
-                ax.plot(xline, yline, zline, c='r')
+    if other_3d_coords is not None:
+        for point in range(41):
+            xline = [all_3d_coords[step][0][point], other_3d_coords[step][0][point]]
+            yline = np.add([all_3d_coords[step][1][point], other_3d_coords[step][1][point]],
+                           (step - start_frame) * coef)
+            zline = [all_3d_coords[step][2][point], other_3d_coords[step][2][point]]
+            ax.plot(xline, yline, zline, c='r')
 
 if __name__ == '__main__':
 
     # Do some testing
 
-    Test = False
+    test = False
 
-    if Test:
+    if test:
         write_test_seq_in_binary(FLAGS.data_dir + '/../test_seq/86_14.c3d',
                                  FLAGS.data_dir + '/basketball_2.binary')
         write_test_seq_in_binary(FLAGS.data_dir + '/../test_seq/85_02.c3d',
