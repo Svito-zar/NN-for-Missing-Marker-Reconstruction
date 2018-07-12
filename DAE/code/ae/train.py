@@ -10,8 +10,8 @@ from utils.flags import FLAGS
 
 from tensorflow.core.protobuf import saver_pb2
 
-SKIP = FLAGS.skip_duration # skip first few seconds - to let motion begin
-NO_GAP = FLAGS.no_gap_duration # give all the markers for the first second
+SKIP = FLAGS.skip_duration      # skip first few seconds - to let motion begin
+NO_GAP = FLAGS.no_gap_duration  # give all the markers for the first second
 
 class DataInfo(object):
     """Information about the datasets
@@ -47,33 +47,14 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         start_time = time.time()
 
         # Read the flags
-        pretrain = FLAGS.Layer_wise_Pretraining
         variance = FLAGS.variance_of_noise
         num_hidden = FLAGS.num_hidden_layers
         ae_hidden_shapes = [FLAGS.network_width for j in xrange(num_hidden)]
-
-        # Check if we use a proper implementation of the AE : Flat one
-        if FLAGS.Hierarchical:
-            print('\nERROR! Hierarchical AE was removed from the implementation,'
-                  ' change the flags "Hierarchical"')
-            exit(1)
-
-        # Check if the middle layer exists
-        if FLAGS.middle_layer > FLAGS.num_hidden_layers:
-            print("\nERROR: "
-                  "middle layer cannot be more than the total amount of layers!"
-                  " Please, change flags accordingly")
-            exit(1)
 
         # Check if recurrency is set in the correct way
         if FLAGS.reccurent == False and FLAGS.chunk_length > 1:
             print("ERROR: Without recurrency chunk length should be 1!"
                   " Please, change flags accordingly")
-            exit(1)
-
-        if FLAGS.restore and pretrain:
-            print('ERROR! You cannot restore and pretrain at the same time!'
-                  ' Please, chose one of these options')
             exit(1)
 
         # Check if the flags makes sence
@@ -137,28 +118,8 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-            if FLAGS.Layer_wise_Pretraining:
-                layers_amount = len(ae_shape) - 2
-
-                # create an optimizers
-                pretrain_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-
-                # Make an array of the trainers for all the layers
-                trainers = [pretrain_optimizer.minimize(
-                    loss_reconstruction(ae.run_less_layers(ae._input_, i + 1),
-                                        ae.run_less_layers(ae._input_, i + 1,
-                                                           is_target=True),
-                                        max_val),
-                    global_step=tf.contrib.framework.get_or_create_global_step(),
-                    name='Layer_wise_optimizer_' + str(i)) for i in
-                    xrange(len(ae_shape) - 2)]
-
-                # Initialize all the variables
-                sess.run(tf.global_variables_initializer())
-
-            else:
-                # Initialize variables
-                sess.run(tf.global_variables_initializer())
+            # Initialize variables
+            sess.run(tf.global_variables_initializer())
 
             # Create a saver
             saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V2)
@@ -175,42 +136,6 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
             num_valid_batches = int(data.test.num_sequences / batch_size)
 
             try:  # running enqueue threads.
-
-                if FLAGS.Layer_wise_Pretraining:
-
-                    for i in xrange(layers_amount):
-                        n = i + 1
-                        print('Pretraining layer number ', n, ' ... ')
-
-                        with tf.variable_scope("layer_{0}".format(n)):
-
-                            layer = ae.run_less_layers(ae._input_, n)
-
-                            with tf.name_scope("pretraining_loss"):
-                                target_for_loss = ae.run_less_layers(ae._input_, n, is_target=True)
-
-                            loss = loss_reconstruction(layer, target_for_loss, max_val)
-
-                            pretrain_trainer = trainers[i]
-
-                            for steps in xrange(num_batches * FLAGS.pretraining_epochs):
-
-                                if (coord.should_stop()):
-                                    break
-
-                                loss_summary, loss_value = sess.run(
-                                    [pretrain_trainer, loss])
-
-                        # Copy the trained weights to the fixed matrices and biases
-                        ae[ae._weights_str.format(n) + 'fixed'] = ae._w(n)
-                        ae[ae._biases_str.format(n) + 'fixed'] = ae._b(n)
-
-                    loss_summary, loss_value = sess.run([train_op, ae._reconstruction_loss])
-
-                    loss_summary, loss_value = \
-                        sess.run([train_op, ae._reconstruction_loss],
-                                 feed_dict={ae._mask: ae._mask_generator.eval(
-                                                session=ae.session)})  # ae._mask_generator.eval(session=ae.session)} )
 
                 # Train the whole network jointly
                 step = 0

@@ -51,12 +51,7 @@ class AutoEncoder(object):
         self._train_data = tf.Variable(self._train_data_initializer, trainable=False,
                                        collections=[], name='Train_data')
 
-        if FLAGS.Layer_wise_Pretraining:  # Have more epochs: also for the pretraining
-            train_frames = tf.train.slice_input_producer(
-                [self._train_data], num_epochs=FLAGS.training_epochs +
-                FLAGS.num_hidden_layers * FLAGS.pretraining_epochs)
-        else:
-            train_frames = tf.train.slice_input_producer([self._train_data],
+        train_frames = tf.train.slice_input_producer([self._train_data],
                                                          num_epochs=FLAGS.training_epochs)
 
         self._train_batch = tf.train.shuffle_batch\

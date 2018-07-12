@@ -36,10 +36,6 @@ flags.DEFINE_float('dropout', 0.9, 'Probability to keep the neuron on')
 flags.DEFINE_integer('batch_size', 32,
                      'Size of the mini batch')
 
-flags.DEFINE_boolean('Layer_wise_Pretraining', False,' Whether we do layer-wise pretraining. It does not help much.')
-
-flags.DEFINE_integer('pretraining_epochs',5,
-                     "Number of training epochs for pretraining layers")
 flags.DEFINE_integer('training_epochs', 100,
                      "Number of training epochs for pretraining layers")
 
@@ -68,7 +64,7 @@ flags.DEFINE_integer('seed', 123456, 'Random seed')
 #                           Directories
 
 flags.DEFINE_string('data_dir',#'/home/taras/Documents/storage/CMU_Mocap/C3D/30k_90L',
-                    #'/home/taras/Documents/Datasets/CMU_c3d/30k_new',
+                    #'/home/taras/Documents/Datasets/MoCap/C3d/30K',
 		     '/home/taras/Documents/Datasets/MoCap/C3d/Raw/30k_90L',
                     'Directory to put the training data.')
 
