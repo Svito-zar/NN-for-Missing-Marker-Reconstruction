@@ -16,9 +16,9 @@ This is an implementation for the paper [A Neural Network Approach to Missing Ma
 
 In my experiments I have been using CMU Mocap dataset. There are 2 options on how to get it:
 
-1. Download [already preprocessed dataset](https://kth.box.com/s/kdfsgq9q26dmxuez3zd02e5fjnmirus7):
+1. Download [already preprocessed dataset](https://kth.box.com/shared/static/9585e6uwxtyvimzuo0awrn9k3x08ci1j.tar):
 
-   Take the test sequences, I used in the paper [here](https://kth.box.com/s/iw30bkv8wak864mveceywgvgkopweuxo)
+   Take the test sequences, I used in the paper [here](https://kth.box.com/shared/static/ji6o5f36tndckprqvoqfw1syyix33wic.tar)
 
 
 
