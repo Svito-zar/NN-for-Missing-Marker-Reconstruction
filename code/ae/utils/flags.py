@@ -48,8 +48,8 @@ flags.DEFINE_float('delta_for_early_stopping', 0.5, 'How much worst the results 
 flags.DEFINE_integer('frame_size', 123, 'Dimensionality of the input for a single frame')
 flags.DEFINE_integer('amount_of_frames_as_input', 1, 'Amount of frames used as input at each time step')
 
-flags.DEFINE_integer("num_hidden_layers",2,"Number of hidden layers")
-flags.DEFINE_integer('network_width', 2048, 'Number of units in each hidden layer ')
+flags.DEFINE_integer("num_hidden_layers",1,"Number of hidden layers")
+flags.DEFINE_integer('network_width', 1024, 'Number of units in each hidden layer ')
 
 #                       Flags about the missing markers
 flags.DEFINE_boolean('missing_markers_are_random', True,' Whether we having missing markers at random positions, or the whole body part')

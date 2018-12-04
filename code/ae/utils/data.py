@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from flags import *
+from utils.flags import *
 
 class DataSet(object):
     '''
@@ -272,7 +272,7 @@ def read_a_folder(curr_dir):
 
             # Split sequence into chunks
             curr_chunks = np.array([curr_sequence[i:i + chunk_length, :] for i in
-                                    xrange(0, len(curr_sequence) - chunk_length, stride)])
+                                    range(0, len(curr_sequence) - chunk_length, stride)])
 
             if curr_chunks.shape[0] > 0:
                 # Concatanate curr chunks to all of them

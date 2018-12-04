@@ -46,7 +46,7 @@ class FlatAutoEncoder(AutoEncoder):
 
                 ##############        SETUP VARIABLES       #####################################
 
-                for i in xrange(self.num_hidden_layers + 1):  # go over all layers
+                for i in range(self.num_hidden_layers + 1):  # go over all layers
 
                     # create variables for matrices and biases for each layer
                     self._create_variables(i, FLAGS.Weight_decay)
@@ -125,7 +125,7 @@ class FlatAutoEncoder(AutoEncoder):
             numb_layers = self.num_hidden_layers + 1
 
             # Pass through the network
-            for i in xrange(numb_layers):
+            for i in range(numb_layers):
                 # First - Apply Dropout
                 last_output = tf.nn.dropout(last_output, dropout)
 
@@ -267,7 +267,7 @@ class FlatAutoEncoder(AutoEncoder):
 
         last_output = input_pl[:, 0, :]  # reduce dimensionality
 
-        for i in xrange(n - 1):
+        for i in range(n - 1):
             w = self._w(i + 1, "_fixed")
             b = self._b(i + 1, "_fixed")
 

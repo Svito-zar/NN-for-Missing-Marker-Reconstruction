@@ -59,7 +59,7 @@ def learning(data, max_val, learning_rate, batch_size, dropout):
         # Read the flags
         variance = FLAGS.variance_of_noise
         num_hidden = FLAGS.num_hidden_layers
-        ae_hidden_shapes = [FLAGS.network_width for j in xrange(num_hidden)]
+        ae_hidden_shapes = [FLAGS.network_width for j in range(num_hidden)]
 
         # Check if recurrency is set in the correct way
         if FLAGS.reccurent == False and FLAGS.chunk_length > 1:
@@ -300,7 +300,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
             exit(0)
 
         mask_chunks = np.array([long_mask[0, i:i + ae.sequence_length, :] for i in
-                                xrange(0, len(long_mask[0]) - ae.sequence_length + 1,
+                                range(0, len(long_mask[0]) - ae.sequence_length + 1,
                                        chunking_stride)])
 
         # Pad with itself if it is too short
@@ -310,7 +310,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
 
         # Batch those chunks
         mask_batches = np.array([mask_chunks[i:i + ae.batch_size, :] for i in
-                                 xrange(0, len(mask_chunks) - ae.batch_size + 1, ae.batch_size)])
+                                 range(0, len(mask_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         if write_skels_to_files:
 
@@ -328,7 +328,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
 
             # Split it into chunks
             seq_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
-                                   xrange(0, len(original_input) - ae.sequence_length + 1,
+                                   range(0, len(original_input) - ae.sequence_length + 1,
                                           chunking_stride)])  # Split sequence into chunks
 
             original_size = seq_chunks.shape[0]
@@ -341,7 +341,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
 
             # Batch those chunks
             batches = np.array([seq_chunks[i:i + ae.batch_size, :] for i in
-                                xrange(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
+                                range(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
 
             numb_of_batches = batches.shape[0]
 
@@ -386,7 +386,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
 
         # Split it into chunks
         seq_chunks = np.array([coords_normalized[i:i + ae.sequence_length, :] for i in
-                               xrange(0, len(original_input) - ae.sequence_length + 1,
+                               range(0, len(original_input) - ae.sequence_length + 1,
                                       chunking_stride)])  # Split sequence into chunks
 
         # Pad with itself if it is too short
@@ -397,7 +397,7 @@ def test(ae, input_seq_file_name, max_val, mean_pose, write_skels_to_files=False
 
         # Batch those chunks
         batches = np.array([seq_chunks[i:i + ae.batch_size, :] for i in
-                            xrange(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
+                            range(0, len(seq_chunks) - ae.batch_size + 1, ae.batch_size)])
 
         numb_of_batches = batches.shape[0]
 

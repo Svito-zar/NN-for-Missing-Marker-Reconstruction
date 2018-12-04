@@ -4,7 +4,7 @@
 This is an implementation for the paper [A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture](https://arxiv.org/abs/1803.02665)
 
 ## Requirements
-- Python 2
+- Python 3
 - Tensorflow >= 1.0
 - Additional Python libraries:
   - numpy
@@ -60,7 +60,7 @@ So final configuration should look like this:
 To run the default example execute the following command. 
 
 ```bash
-$ python code/train.py
+$ python code/ae/train.py
 ```
 
 ## Customizing
