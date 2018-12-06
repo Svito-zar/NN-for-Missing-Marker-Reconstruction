@@ -1,7 +1,8 @@
 # A Neural Network Approach to Missing Marker Reconstruction
 
 
-This is an implementation for the paper [A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture](https://arxiv.org/abs/1803.02665)
+This is an implementation for the paper [A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture](https://arxiv.org/abs/1803.02665).
+Youtube video of the experimental results is [here](https://www.youtube.com/watch?v=mi75gzEhbHI).
 
 ## Requirements
 - Python 3
