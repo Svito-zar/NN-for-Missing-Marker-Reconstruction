@@ -69,5 +69,15 @@ You can play around with the run options, including the neural net size and shap
 Otherwise - you can find the Best Flags in the folder BestFlags
 
 ## Contact
-
 If you encounter any problems/bugs/issues please contact me on github or by emailing me at tarask@kth.se for any bug reports/questions/suggestions. I prefer questions and bug reports on github as that provides visibility to others who might be encountering same issues or who have the same questions.
+
+## Citation
+Here is the citation in bib format:
+```
+@article{kucherenko2018neural,
+  title={A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture},
+  author={Kucherenko, Taras and Beskow, Jonas and Kjellstr{\"o}m, Hedvig},
+  journal={https://arxiv.org/abs/1803.02665v4},
+  year={2018}
+}
+```
