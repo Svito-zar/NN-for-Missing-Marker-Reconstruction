@@ -17,9 +17,9 @@ Youtube video of the experimental results is [here](https://www.youtube.com/watc
 
 In my experiments I have been using CMU Mocap dataset. There are 2 options on how to get it:
 
-1. Download [already preprocessed dataset](https://kth.box.com/s/w3xjeozhshgnemjeik05rzcr1kvaoww1):
+1. Download [already preprocessed dataset](https://drive.google.com/open?id=1hLuCCWUn25c-OTqH7Z4E4MrnXlFSR_XW):
 
-   Take the test sequences, I used in the paper [here](https://kth.box.com/s/5p0sbt1ufmwzddlfi2sw66cjaamno7cl)
+   Take the test sequences, I used in the paper [here](https://drive.google.com/open?id=1yIN7OXRjI74gTsara6HhSVsn_OA_qVIa)
 
 
 
@@ -27,6 +27,7 @@ In my experiments I have been using CMU Mocap dataset. There are 2 options on ho
 
     (** Note: the results depends a lot on amount and type of the data you use **)
 
+   - Install btk library
    - Download [CMU Mocap dataset in BVH format](https://sites.google.com/a/cgspeed.com/cgspeed/motion-capture/daz-friendly-release)
    - Create folders "train" and "eval" (if flag "evaluate" is true) or "dev" (if flag "evaluate" is false)
    - Move the files you want to use for training into the "train" folder (they should be in the folder themself)
