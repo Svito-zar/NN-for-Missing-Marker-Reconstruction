@@ -1,8 +1,8 @@
-#Deep Autoencoder with TensorFlow for Represantation Learning of CMU MoCap dataset
+# Deep Autoencoder with TensorFlow for Motion Denoising of CMU MoCap dataset
 
-The goal of this project is to learn a mapping from the human posture to the robot posture, such that robot can convey a human emotion.
+The was a side product of a work towards missing markers reconstruction resulting in a paper [A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture](https://arxiv.org/abs/1803.02665).
 
-First we need to learn a good represation of the human motion. We will do it by Deep Autoencoder.
+We have used Deep Autoencoder and have observed that it can also remove a significant ammount of noise from the data.
 
 
 
@@ -18,20 +18,20 @@ After cloning repository do the following:
 
 
 Ubuntu/Linux
-'''
+```
 $ cd DAE-for-Mocap-Representation-Learning
 $ sudo chmod +x setup_linux
 $ sudo ./setup_linux  # If you want GPU version specify -g or --gpu
 $ source venv/bin/activate 
-'''
+```
 
 Mac OS X
-'''
+```
 $ cd DAE-for-Mocap-Representation-Learning
 $ sudo chmod +x setup_mac
 $ sudo ./setup_mac
 $ source venv/bin/activate 
-'''
+```
 
 ##Run
 To run the default example execute the following command. 
