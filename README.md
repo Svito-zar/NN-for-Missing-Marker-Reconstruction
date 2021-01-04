@@ -1,5 +1,11 @@
 # A Neural Network Approach to Missing Marker Reconstruction
 
+<p align="center">
+  <img src="assets/illustration.gif" alt="example of the reconstruction">
+  <br>
+  <i>Example of missing marker reconstruction </i>
+</p>
+
 
 This is an implementation for the paper [A Neural Network Approach to Missing Marker Reconstruction in Human Motion Capture](https://arxiv.org/abs/1803.02665).
 Youtube video of the experimental results is [here](https://www.youtube.com/watch?v=mi75gzEhbHI).
