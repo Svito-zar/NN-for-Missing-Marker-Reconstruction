@@ -23,10 +23,9 @@ Youtube video of the experimental results is [here](https://www.youtube.com/watc
 
 In my experiments I have been using CMU Mocap dataset. There are 2 options on how to get it:
 
-1. Download [already preprocessed dataset](https://drive.google.com/open?id=1hLuCCWUn25c-OTqH7Z4E4MrnXlFSR_XW):
+1. Download [already preprocessed dataset](https://kth.box.com/s/w3xjeozhshgnemjeik05rzcr1kvaoww1):
 
-   Take the test sequences, I used in the paper [here](https://drive.google.com/open?id=1yIN7OXRjI74gTsara6HhSVsn_OA_qVIa)
-
+   Take the test sequences, I used in the paper [here](https://kth.box.com/s/5p0sbt1ufmwzddlfi2sw66cjaamno7cl)
 
 
 2. Preprocess dataset by yourself
@@ -76,7 +75,7 @@ You can play around with the run options, including the neural net size and shap
 Otherwise - you can find the Best Flags in the folder BestFlags
 
 ## Contact
-If you encounter any problems/bugs/issues please contact me on github or by emailing me at tarask@kth.se for any bug reports/questions/suggestions. I prefer questions and bug reports on github as that provides visibility to others who might be encountering same issues or who have the same questions.
+If you encounter any problems/bugs/issues please create an issue on github or email me at tarask@kth.se for any bug reports/questions/suggestions. I prefer questions and bug reports on github as that provides visibility to others who might be encountering same issues or who have the same questions.
 
 ## Citation
 Here is the citation in bib format:
